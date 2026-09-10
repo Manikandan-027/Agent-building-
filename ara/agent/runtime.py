@@ -92,6 +92,9 @@ class AgentRuntime:
                            conversation_id=conversation_id, status=TaskStatus.PLANNING)
         contract.normalized_goal = contract.normalized_goal or contract.user_request[:300]
 
+        # semantic promotion attempt: policy decides (deterministic, never stores secrets)
+        self.memory.remember_user_fact(tenant_id=principal.tenant_id, user_id=principal.user_id,
+                                       content=contract.user_request)
         mem_ctx = self.memory.context_for_task(tenant_id=principal.tenant_id, user_id=principal.user_id,
                                                query=contract.user_request, conversation_id=conversation_id)
         state.memory_context = mem_ctx.get("recalled_memories", [])
