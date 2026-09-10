@@ -157,6 +157,7 @@ Then in `.env` set `DATABASE_URL=postgresql://...`, `REDIS_URL=redis://localhost
 
 | Symptom | Fix |
 |---|---|
+| **Old UI / chat-only page / key popup** | You're on a stale copy: `git pull`, then **hard-refresh** the browser (`Ctrl+Shift+R` / `Cmd+Shift+R`). The current console shows a **"UI v2"** badge next to the logo and tabs for Chat / Documents / Tasks / Memory / System. |
 | `No module named 'ara'` | Run uvicorn **from the repo root** (the folder containing `ara/`), with the venv active. |
 | `No module named 'fastapi'` | venv not active, or `pip install -r requirements.txt` not run in this venv. Re-do steps 2–3. |
 | `python: command not found` (macOS/Linux) | Use `python3`. |

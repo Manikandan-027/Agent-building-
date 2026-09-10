@@ -245,7 +245,8 @@ def create_app(settings=None) -> FastAPI:
         from pathlib import Path
 
         static = Path(__file__).parent / "static" / "index.html"
-        return FileResponse(static)
+        # never let a stale browser cache hide a newer console UI
+        return FileResponse(static, headers={"Cache-Control": "no-store"})
 
     return app
 
