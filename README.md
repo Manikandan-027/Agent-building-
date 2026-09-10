@@ -105,8 +105,11 @@ embeddings. Production activates Postgres, Redis and Qdrant purely via env confi
 
 ## Model selection & fine-tuning
 
-Default model: **`gpt-4.1-mini`** (best JSON/tool reliability per dollar; any
-OpenAI-compatible endpoint works — OpenRouter, Gemini, Groq, vLLM, Azure).
+Default model: **`gpt-4.1-mini`** (paid, ~$0.01–0.03/task; best JSON/tool
+reliability per dollar). **$0 options:** Gemini 2.5 Flash free tier (AI Studio),
+Groq, OpenRouter free models, or a private local Ollama (`qwen3:8b`) — any
+OpenAI-compatible endpoint works; see MODEL_SELECTION.md for the free-tier table
+and rate limits.
 The runtime routes by task: the PLANNER can use a stronger model
 (`OPENAI_MODEL_PLANNER`) while extractive roles (REASONER/ANSWERER/CLAIMER) use a
 cheap fast one (`OPENAI_MODEL_FAST`) — routing is enforced in code.

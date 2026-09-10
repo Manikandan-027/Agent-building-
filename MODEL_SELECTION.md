@@ -1,6 +1,56 @@
 # Model Selection & Fine-Tuning Policy
 
-## Recommendation (2026, for this architecture)
+## Is the default model free?
+
+**No.** `gpt-4.1-mini` is pay-as-you-go (~$0.40 per 1M input / $1.60 per 1M output
+tokens). A typical ARA task makes 4–6 small calls (~10–20K tokens total), so real
+costs are roughly **$0.01–0.03 per task** — a few dollars per month for personal
+use, but never zero. For $0, use one of the options below.
+
+## 100% free configuration (recommended free stack, verified 2026-09)
+
+Best free pick for THIS project: **Google Gemini 2.5 Flash (AI Studio free tier)** —
+ARA sends *large evidence prompts* (1M TPM matters) and needs strict JSON; Gemini
+Flash is the strongest free model on both, with ~15 req/min and ~1,000–1,500
+req/day (≈200–300 tasks/day), no credit card.
+
+| Provider (free tier) | Model | Free limits | Why / caveat |
+|---|---|---|---|
+| **Google AI Studio** ← primary | `gemini-2.5-flash` | ~15 RPM · ~1,000–1,500 req/day · 1M TPM | best free JSON/tool quality; **free-tier data may train Google models** — keep sensitive docs off it |
+| **Groq** ← fallback | `llama-3.3-70b-versatile` or `gpt-oss-120b` | 30 RPM · ~1,000 req/day · 5–20K TPM | blazing fast; low TPM = split large evidence blocks |
+| **OpenRouter** ← last resort | `deepseek-chat:free` etc. | 50 req/day (1,000/day after any $10 topup) | 14+ free models, one key |
+| **Ollama (local)** ← unlimited & private | `qwen3:8b` | none — your hardware (≈8–16GB RAM) | truly $0 forever, nothing leaves your machine; slower |
+
+**Privacy note:** on every free API tier your prompts (including retrieved
+document content) may be used for provider training. For confidential corpora use
+the local Ollama option or a paid endpoint.
+
+Chain them for resilience — on 429/5xx the runtime automatically falls through
+(see `OPENAI_FALLBACK_MODELS` below):
+
+```bash
+# .env — $0 setup
+OPENAI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
+OPENAI_API_KEY=...            # aistudio.google.com -> Get API key
+OPENAI_MODEL=gemini-2.5-flash
+OPENAI_FALLBACK_MODELS=llama-3.3-70b-versatile,deepseek-chat:free
+# (fallbacks only work if the SAME base URL serves them; for cross-provider
+#  chains run a local gateway or keep one provider per environment)
+```
+
+Local/private alternative ($0 forever):
+
+```bash
+ollama serve && ollama pull qwen3:8b
+# .env:
+OPENAI_BASE_URL=http://localhost:11434/v1
+OPENAI_MODEL=qwen3:8b
+```
+
+And remember: with no key at all, ARA runs its built-in deterministic scripted
+provider — $0, no network, fully tested (that is what CI uses).
+
+## Paid recommendation (2026, for this architecture)
 
 ARA makes **several small LLM calls per task** (plan → optional reason → answer →
 claims), each with strict JSON and citation requirements. The bottleneck is
