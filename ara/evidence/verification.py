@@ -19,7 +19,6 @@ against evidence deterministically.
 from __future__ import annotations
 
 import re
-from typing import Any
 
 from ara.core.logging import get_logger
 from ara.evidence.manager import EvidenceManager, as_evidence_dict

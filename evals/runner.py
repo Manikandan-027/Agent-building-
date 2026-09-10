@@ -11,7 +11,6 @@ Tracked metrics:
 """
 from __future__ import annotations
 
-import json
 import tempfile
 import time
 from dataclasses import dataclass, field
@@ -31,7 +30,7 @@ from ara.memory import MemoryManager
 from ara.policy.authz import PolicyEngine, Principal
 from ara.retrieval import InProcessMockColPali, IngestionPipeline, RetrievalEngine
 from ara.retrieval.vectors import InMemoryMultiVectorStore
-from ara.tools import ToolPipeline, ToolRegistry, get_mock_web_corpus, get_report_store, get_sent_log, register_builtin_tools
+from ara.tools import ToolRegistry, get_mock_web_corpus, get_report_store, get_sent_log, register_builtin_tools
 from ara.tools.registry import ToolSpec
 
 

@@ -11,7 +11,6 @@ Risk policy for MCP tools (configurable):
 """
 from __future__ import annotations
 
-import json
 import re
 
 from ara.core.errors import ToolError

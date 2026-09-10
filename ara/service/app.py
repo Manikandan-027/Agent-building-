@@ -5,13 +5,12 @@ tenant-scoped. Errors map to typed HTTP responses via the AraError taxonomy.
 from __future__ import annotations
 
 import json
-from typing import Any
 
 from fastapi import Depends, FastAPI, Header, Request, UploadFile, File
 from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel, Field
 
-from ara.agent.state import TaskContract, VerificationRequirements, ExecutionBudget
+from ara.agent.state import TaskContract, ExecutionBudget
 from ara.core.config import get_settings
 from ara.core.errors import AraError, NotFoundError, ValidationError
 from ara.core.ids import new_id

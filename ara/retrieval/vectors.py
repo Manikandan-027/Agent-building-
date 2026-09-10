@@ -121,9 +121,11 @@ class QdrantMultiVectorStore:
                min_score: float = 0.0) -> list[dict]:
         m = self.models
         pooled = [sum(col) / len(col) for col in zip(*query_vectors)]
-        cond = [m.FieldCondition(key="tenant_id", match=m.MatchValue(value=flt["tenant_id"]))]
+        tenant_filter = m.Filter(must=[m.FieldCondition(key="tenant_id",
+                                                        match=m.MatchValue(value=flt["tenant_id"]))])
         candidates = self.client.query_points(collection=self.collection, query=pooled,
-                                              using="pooled", limit=max(k * 6, 30)).points
+                                              using="pooled", query_filter=tenant_filter,
+                                              limit=max(k * 6, 30)).points
         out = []
         for p in candidates:
             payload = p.payload or {}

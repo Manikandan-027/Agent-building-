@@ -25,7 +25,6 @@ from typing import Any, Callable
 
 from ara.agent.resilience import with_retry
 from ara.core.errors import AraError, ToolError, ToolTimeout, ToolUnavailable, ValidationError
-from ara.core.ids import new_id
 from ara.core.logging import get_logger
 from ara.core.types import RiskLevel
 from ara.policy.authz import ApprovalRequiredSignal, PolicyEngine, Principal

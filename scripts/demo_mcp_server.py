@@ -58,7 +58,7 @@ def handle_call(name: str, args: dict) -> dict:
     if name == "unit_convert":
         fn = CONVERSIONS.get((args["from_unit"], args["to_unit"]))
         if not fn:
-            return {"content": [{"type": "text", "text": f"unsupported conversion"}], "isError": True}
+            return {"content": [{"type": "text", "text": "unsupported conversion"}], "isError": True}
         result = round(fn(float(args["value"])), 6)
         return {"content": [{"type": "text",
                              "text": f"{args['value']} {args['from_unit']} = {result} {args['to_unit']}"}],

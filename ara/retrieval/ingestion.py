@@ -17,7 +17,7 @@ import hashlib
 from io import BytesIO
 
 from ara.core.errors import ValidationError
-from ara.core.ids import iso_now, new_id
+from ara.core.ids import iso_now
 from ara.core.logging import get_logger
 from ara.db import UnitOfWork
 from ara.retrieval.colpali_client import ColPaliLike

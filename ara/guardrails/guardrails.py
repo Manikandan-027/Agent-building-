@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from ara.core.errors import PolicyViolation, UnsafeContentError, ValidationError
+from ara.core.errors import PolicyViolation, UnsafeContentError
 from ara.core.logging import get_logger
 from ara.core.types import RiskLevel
 from ara.guardrails.injection import InjectionDetector

@@ -11,7 +11,6 @@ import ast
 import operator
 import re
 import threading
-from typing import Any
 
 from ara.core.errors import ToolError, ValidationError
 from ara.core.ids import iso_now

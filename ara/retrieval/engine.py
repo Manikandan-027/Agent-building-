@@ -19,7 +19,7 @@ from ara.core.logging import get_logger
 from ara.evidence.manager import EvidenceManager
 from ara.guardrails.injection import InjectionDetector
 from ara.retrieval.colpali_client import ColPaliLike
-from ara.retrieval.vectors import InMemoryMultiVectorStore, make_access_filter
+from ara.retrieval.vectors import make_access_filter
 
 log = get_logger("ara.retrieval")
 

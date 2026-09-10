@@ -13,7 +13,6 @@ so the system stays useful (and safe) even in scripted mode.
 """
 from __future__ import annotations
 
-import json
 import re
 
 from ara.agent.llm import LLMProvider, parse_json_object

@@ -16,7 +16,6 @@ from __future__ import annotations
 import json
 import subprocess
 import threading
-from typing import Any
 
 from ara.agent.resilience import run_with_timeout, with_retry
 from ara.core.errors import ToolError, ToolTimeout, ToolUnavailable

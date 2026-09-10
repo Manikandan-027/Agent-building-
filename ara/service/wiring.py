@@ -11,7 +11,7 @@ import os
 
 from ara.agent.llm import make_provider
 from ara.agent.runtime import AgentRuntime
-from ara.core.config import Settings, get_settings
+from ara.core.config import Settings
 from ara.core.logging import get_logger, setup_logging
 from ara.db import UnitOfWork
 from ara.db.database import Database

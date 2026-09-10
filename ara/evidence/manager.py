@@ -13,7 +13,7 @@ from typing import Iterable
 from ara.core.ids import iso_now
 from ara.core.logging import get_logger
 from ara.core.types import ContentTrust, SourceAuthority
-from ara.guardrails.injection import InjectionDetector, InjectionScan
+from ara.guardrails.injection import InjectionDetector
 
 log = get_logger("ara.evidence")
 

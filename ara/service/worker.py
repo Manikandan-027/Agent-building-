@@ -9,7 +9,6 @@ import json
 import threading
 import time
 
-from ara.core.errors import AraError
 from ara.core.logging import get_logger
 from ara.core.tracing import Trace
 from ara.core.types import TaskStatus
@@ -69,8 +68,6 @@ class TaskWorker:
             try:
                 saved = json.loads(row["state_json"])
                 saved.setdefault("errors", []).append({"source": "worker", "message": detail})
-                status = TaskStatus.FAILED.value if not isinstance(exc, AraError) else saved.get("status",
-                                                                                               TaskStatus.FAILED.value)
                 self.ctx.uow.tasks.update_state(task_id, saved, TaskStatus.FAILED.value,
                                                 f"Task failed: {detail}")
             except Exception:  # noqa: BLE001
