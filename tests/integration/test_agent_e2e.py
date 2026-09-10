@@ -192,12 +192,16 @@ def test_injected_document_cannot_hijack_or_ground_answer(env):
     # the runtime's final answer contains no injected directives
     low = result.answer.lower()
     assert "evilgpt" not in low and "api key" not in low
-    # grounded claims may only cite admissible evidence
+    # grounded claims may only cite CONTENT that scans clean (page-level flags may
+    # exist, but sentence-level quarantine must have removed the attack lines)
+    from ara.guardrails import InjectionDetector as _ID
+
+    det = _ID(0.55)
     for claim in result.state.verification.claims:
         if claim["supported"]:
             for ev_id in claim["evidence_ids"]:
                 ev = next(e for e in result.state.evidence if e.evidence_id == ev_id)
-                assert not ev.injection_scan["flagged"]
+                assert not det.scan(ev.content).flagged, f"flagged content grounded a claim: {ev.content[:80]}"
 
 
 def test_forbidden_tool_blocked_at_runtime(env):

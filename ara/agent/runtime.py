@@ -229,7 +229,8 @@ class AgentRuntime:
                     if rec.tool == "calculator":
                         ev = self.em.make(
                             content=json.dumps({"calculation": (step.args or {}).get("expression"),
-                                                "result": rec.result.get("result")}),
+                                                "result": rec.result.get("result"),
+                                                "result_str": rec.result.get("result_str")}),
                             document_id="calculator", page=0, content_type="calculation",
                             trust=ContentTrust.APP_DATA, source="calculation", relevance_score=1.0,
                             tenant_id=principal.tenant_id)
@@ -340,6 +341,25 @@ class AgentRuntime:
                                                  for b in bad)]
                 answer = " ".join(kept) or ("The retrieved evidence was insufficient to verify an answer, "
                                             "so I am not providing one.")
+
+            # conflict resolution: drop sentences citing the losing side of a
+            # resolved conflict (authority > version > recency); if UNRESOLVED,
+            # drop BOTH sides — never silently prefer a convenient value.
+            losers: set[str] = set()
+            for conflict in report["conflicts"]:
+                pref = conflict["resolution"].get("prefer")
+                sides = {conflict["evidence_a"], conflict["evidence_b"]}
+                losers |= (sides - {pref}) if pref else sides
+            if losers:
+                kept = []
+                for sent in re.split(r"(?<=[.!?])\s+", answer):
+                    cited_here = set(re.findall(r"\b(?:ev|call)_[a-z0-9_]+\b", sent))
+                    if cited_here & losers:
+                        continue
+                    kept.append(sent)
+                answer = " ".join(kept) or (
+                    "The sources disagree on the key values and the conflict could not be "
+                    "resolved deterministically, so I am not asserting either figure.")
 
             # output guardrail: fabricated citations, fabricated tool claims, secret leaks
             valid_ids = {e.evidence_id for e in state.evidence}

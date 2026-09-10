@@ -40,32 +40,55 @@ class EvidenceManager:
              trust: ContentTrust = ContentTrust.RETRIEVED, source: str = "internal_corpus",
              relevance_score: float = 0.0, tenant_id: str = "", meta: dict | None = None) -> dict:
         scan = self.detector.scan(content)
+        clean, quarantined_n = content, 0
+        if scan.flagged:
+            # sentence-level containment: quarantine attack lines, admit clean ones.
+            # A page mixing one legitimate sentence with an attack footer must not
+            # lose ALL of its evidence (and must not pass the attack through).
+            import re as _re
+
+            kept = []
+            for sent in _re.split(r"(?<=[.!?])\s+|\n+", content):
+                if not sent.strip():
+                    continue
+                if self.detector.scan(sent).flagged:
+                    quarantined_n += 1
+                else:
+                    kept.append(sent.strip())
+            clean = " ".join(kept)
         authority = self.source_authority.get(source, SourceAuthority.UNKNOWN.value)
         ev = {
             "evidence_id": None,  # assigned by caller (stable across persistence)
             "document_id": document_id,
             "page": page,
             "content_type": content_type,
-            "content": content,
+            "content": clean,
             "relevance_score": round(relevance_score, 4),
             "source_authority": authority,
             "source_trust": trust.value,
             "retrieval_timestamp": iso_now(),
             "tenant_id": tenant_id,
             "injection_scan": scan.to_dict(),
-            "meta": {"source": source, **(meta or {})},
+            "meta": {"source": source, **(meta or {}), "quarantined_sentences": quarantined_n,
+                     "original_length": len(content)},
         }
         if scan.flagged:
-            log.warning("evidence_injection_flagged", extra={"fields": {"reasons": scan.reasons}})
+            log.warning("evidence_injection_flagged",
+                        extra={"fields": {"reasons": scan.reasons, "quarantined_sentences": quarantined_n}})
         return ev
 
     @staticmethod
     def is_groundedable(ev) -> bool:
-        """Flagged injections and model text can never support claims."""
+        """Flagged injections are groundedable ONLY via their sentence-level clean
+        remainder; fully-flagged pages and model text can never support claims."""
         ev = as_evidence_dict(ev)
-        if ev.get("injection_scan", {}).get("flagged"):
+        if not ev.get("content", "").strip():
             return False
-        return ev.get("source_trust") in GROUNDAUTH_TRUST
+        if ev.get("source_trust") not in GROUNDAUTH_TRUST:
+            return False
+        if ev.get("injection_scan", {}).get("flagged") and                 not ev.get("meta", {}).get("quarantined_sentences"):
+            return False  # flagged with nothing admissible removed => fully hostile
+        return True
 
     @staticmethod
     def by_id(evidence: Iterable, evidence_id: str) -> dict | None:

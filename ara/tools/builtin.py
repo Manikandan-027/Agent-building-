@@ -50,7 +50,8 @@ def calculator_handler(args: dict, ctx: dict) -> dict:
     result = _safe_eval(tree, variables)
     if result != result or result in (float("inf"), float("-inf")):
         raise ToolError("calculator produced a non-finite result")
-    return {"expression": args["expression"], "result": result, "computed_at": iso_now(), "verified": True}
+    return {"expression": args["expression"], "result": result, "result_str": f"{result:g}",
+            "computed_at": iso_now(), "verified": True}
 
 
 def clock_handler(args: dict, ctx: dict) -> dict:
@@ -197,6 +198,7 @@ def register_builtin_tools(registry, *, web_corpus: MockWebCorpus | None = None)
             "type": "object",
             "properties": {
                 "expression": {"type": "string"}, "result": {"type": "number"},
+                "result_str": {"type": "string"},
                 "computed_at": {"type": "string"}, "verified": {"type": "boolean"},
             },
             "required": ["expression", "result"],

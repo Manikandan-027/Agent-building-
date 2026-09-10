@@ -172,6 +172,25 @@ class Planner:
             plan.steps.append(PlanStep(description="Produce the final grounded answer",
                                        action=StepAction.FINAL_ANSWER))
             return plan
+        growth = re.search(
+            r"(?i)(?:grew|growth|increase|rise|changed)\D{0,20}from\s*(-?[\d,.]+)\s*"
+            r"(?:million|thousand|billion)?.{0,40}?to\s*(-?[\d,.]+)", req)
+        if growth and (not contract.allowed_tools or "calculator" in contract.allowed_tools) \
+                and not calc_forbidden:
+            a = growth.group(1).replace(",", "")
+            b = growth.group(2).replace(",", "")
+            expr = f"({b} - {a}) / {a} * 100"
+            plan = Plan(goal=f"percent change from {a} to {b}",
+                        rationale="deterministic percent-change plan")
+            plan.steps.append(PlanStep(description="Search documents for the underlying figures",
+                                       action=StepAction.RETRIEVE, query=req[:300]))
+            plan.steps.append(PlanStep(description=f"Calculate percent change {expr}",
+                                       action=StepAction.TOOL_CALL, tool="calculator",
+                                       args={"expression": expr,
+                                             "variables": {}}))
+            plan.steps.append(PlanStep(description="Produce the final grounded answer",
+                                       action=StepAction.FINAL_ANSWER))
+            return plan
         if CLOCK_RE.search(req):
             plan = Plan(goal="current time", rationale="deterministic clock plan")
             plan.steps.append(PlanStep(description="Get current UTC time", action=StepAction.TOOL_CALL,
