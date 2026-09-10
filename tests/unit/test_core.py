@@ -69,3 +69,43 @@ def test_tenant_isolation_in_repositories(uow):
     )
     assert uow.tasks.get("task_1", "ten_a") is not None
     assert uow.tasks.get("task_1", "ten_b") is None  # cross-tenant access blocked
+
+
+def test_settings_reads_unprefixed_provider_env(tmp_path, monkeypatch):
+    """Regression: OPENAI_*/COLPALI_*/DATABASE_URL must be read without ARA_ prefix
+    (env_prefix bug silently disabled the real LLM provider and compose env)."""
+    import os
+
+    from ara.core.config import Settings
+
+    env = tmp_path / ".env"
+    env.write_text(
+        "OPENAI_BASE_URL=https://api.groq.com/openai/v1\n"
+        "OPENAI_API_KEY=gsk_test\n"
+        "OPENAI_MODEL=openai/gpt-oss-120b\n"
+        "OPENAI_MODEL_FAST=qwen/qwen3.8-27b\n"
+        "COLPALI_MODE=real\n"
+        "DATABASE_URL=postgresql://u:p@h/db\n"
+    )
+    s = Settings(_env_file=str(env), env="test")
+    assert s.openai_base_url == "https://api.groq.com/openai/v1"
+    assert s.openai_api_key == "gsk_test"
+    assert s.openai_model == "openai/gpt-oss-120b"
+    assert s.openai_model_fast == "qwen/qwen3.8-27b"
+    assert s.colpali_mode == "real"
+    assert s.database_url == "postgresql://u:p@h/db"
+    # ARA_-prefixed variants still win (documented convention)
+    s2 = Settings(_env_file=str(env), env="test", ARA_OPENAI_MODEL="fallback-model")
+    assert s2.openai_model == "fallback-model"
+
+
+def test_make_provider_activates_on_real_config(tmp_path, monkeypatch):
+    from ara.core.config import Settings
+    from ara.agent.llm import OpenAICompatibleProvider, make_provider
+
+    s = Settings(_env_file=tmp_path / "none.env", env="test",
+                 OPENAI_BASE_URL="https://api.groq.com/openai/v1",
+                 OPENAI_API_KEY="gsk_x", OPENAI_MODEL="openai/gpt-oss-120b")
+    p = make_provider(s)
+    assert isinstance(p, OpenAICompatibleProvider)
+    assert p.name == "openai_compatible"

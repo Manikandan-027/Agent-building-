@@ -46,13 +46,27 @@ class VerificationEngine:
         claims: list[dict] = []
         if llm_proposal and isinstance(llm_proposal.get("claims"), list):
             for c in llm_proposal["claims"][:24]:
-                if isinstance(c, dict) and isinstance(c.get("text"), str) and len(c["text"]) >= 8:
-                    claims.append({
-                        "text": c["text"],
-                        "evidence_ids": [str(e) for e in (c.get("evidence_ids") or [])][:8],
-                        "kind": c.get("kind", "factual"),
-                    })
+                if isinstance(c, dict) and isinstance(c.get("text"), str):
+                    txt = c["text"]
+                    # numeric answers ("59202") are short but fully verifiable —
+                    # length floor applies only to prose claims
+                    if len(txt) >= 8 or (any(ch.isdigit() for ch in txt) and len(txt) >= 3):
+                        claims.append({
+                            "text": txt,
+                            "evidence_ids": [str(e) for e in (c.get("evidence_ids") or [])][:8],
+                            "kind": c.get("kind", "factual"),
+                        })
             return claims
+        # fallback: split sentences; keep numeric fragments (verified against
+        # calculator results / cited evidence) even when short
+        for sentence in re.split(r"(?<=[.!?])\s+", draft):
+            refs = re.findall(r"\b(?:ev|call)_[a-z0-9_]+\b", sentence)
+            clean = re.sub(r"\b(?:ev|call)_[a-z0-9_]+\b", "", sentence).strip(" ,.")
+            is_numeric = bool(NUM_RE.search(clean))
+            if len(clean) >= 8 or (is_numeric and len(clean) >= 3):
+                claims.append({"text": clean, "evidence_ids": refs,
+                               "kind": "numeric" if is_numeric else "factual"})
+        return claims[:24]
         for sentence in re.split(r"(?<=[.!?])\s+", draft):
             refs = re.findall(r"\b(?:ev|call)_[a-z0-9_]+\b", sentence)
             clean = re.sub(r"\b(?:ev|call)_[a-z0-9_]+\b", "", sentence).strip(" ,.")
@@ -65,15 +79,25 @@ class VerificationEngine:
     # ---------------------------------------------------------------- verify
     def verify(self, draft: str, evidence: list[dict], requirements, *,
                calculator_results: list[dict] | None = None,
-               llm_proposal: dict | None = None) -> dict:
+               llm_proposal: dict | None = None,
+               default_citations: list[str] | None = None) -> dict:
         evidence = [as_evidence_dict(e) for e in evidence]
         claims = self.extract_claims(draft, llm_proposal)
+        # Structured citations (the answerer's "citations" array) apply to claims
+        # carrying no inline evidence ids. NOT blind trust: _verify_claim still
+        # requires token/number support between the claim and the cited evidence.
+        if default_citations:
+            for c in claims:
+                if not c.get("evidence_ids"):
+                    c["evidence_ids"] = [e for e in default_citations if isinstance(e, str)]
         calculator_numbers = self._calc_numbers(calculator_results or [])
+        calculator_floats = [float(r["result"]) for r in (calculator_results or [])
+                             if isinstance(r.get("result"), (int, float))]
         verified: list[dict] = []
         unsupported: list[str] = []
 
         for claim in claims:
-            verdict = self._verify_claim(claim, evidence, calculator_numbers)
+            verdict = self._verify_claim(claim, evidence, calculator_numbers, calculator_floats)
             verified.append(verdict)
             if not verdict["supported"]:
                 unsupported.append(claim["text"])
@@ -105,21 +129,54 @@ class VerificationEngine:
                        "citations_present": cited_any, "claim_count": len(claims)},
         }
 
-    def _verify_claim(self, claim: dict, evidence: list[dict], calculator_numbers: set[str]) -> dict:
+    @staticmethod
+    def normalize_evidence_ref(raw: str, evidence_index: dict[str, dict]) -> str | None:
+        """Deterministic cleanup of model-copied evidence references.
+
+        Models sometimes copy containment wrapper tags ('UNTRUSTED_EV_call_x') or
+        stack prefixes ('ev_call_x'). A reference is accepted ONLY if normalization
+        maps it to an evidence id that actually exists — never invented.
+        """
+        ref = (raw or "").strip()
+        ref = ref.strip("'` ")
+        if ref in evidence_index:
+            return ref
+        # progressively strip wrapper/prefix layers; only accept if an ACTUAL
+        # evidence id emerges (never invent)
+        for prefix in ("UNTRUSTED_EV_", "UNTRUSTED_", "EV_", "ev_"):
+            if ref.startswith(prefix):
+                candidate = ref[len(prefix):]
+                if candidate in evidence_index:
+                    return candidate
+                for inner in ("UNTRUSTED_EV_", "UNTRUSTED_"):
+                    if candidate.startswith(inner) and candidate[len(inner):] in evidence_index:
+                        return candidate[len(inner):]
+        return None
+
+    def _verify_claim(self, claim: dict, evidence: list[dict], calculator_numbers: set[str],
+                      calculator_floats: list[float] | None = None) -> dict:
         text = claim["text"]
-        cited = claim.get("evidence_ids") or []
+        evidence_index = {e["evidence_id"]: e for e in evidence}
+        cited_raw = claim.get("evidence_ids") or []
+        cited: list[str] = []
+        unresolved: list[str] = []
+        for raw in cited_raw:
+            resolved = self.normalize_evidence_ref(raw, evidence_index)
+            if resolved and resolved not in cited:
+                cited.append(resolved)
+            elif not resolved:
+                unresolved.append(raw)
         problems: list[str] = []
         supporting: list[str] = []
 
         if not cited:
             problems.append("no citation")
+        for raw in unresolved:
+            problems.append(f"cited evidence {raw} does not exist")
 
         claim_tokens = tokens(text)
         for ev_id in cited:
             ev = EvidenceManager.by_id(evidence, ev_id)
-            if ev is None:
-                problems.append(f"cited evidence {ev_id} does not exist")
-                continue
             if not self.em.is_groundedable(ev):
                 problems.append(f"cited evidence {ev_id} is inadmissible "
                                 f"(trust={ev.get('source_trust')}, injection={ev.get('injection_scan', {}).get('flagged')})")
@@ -127,16 +184,47 @@ class VerificationEngine:
             support = len(claim_tokens & tokens(ev.get("content", ""))) / (len(claim_tokens) or 1)
             if support >= SUPPORT_THRESHOLD:
                 supporting.append(ev_id)
-        if cited and not supporting:
-            problems.append("no admissible supporting evidence")
+        lacked_page_support = bool(cited) and not supporting
 
         # deterministic numeric grounding
+        derived_note: list[str] = []
         missing_numbers = []
+        numbers_from_calculator = 0
+        numbers_total = 0
+        page_texts = [ev.get("content", "") for ev in evidence
+                      if ev.get("evidence_id") in (supporting or cited)
+                      and ev.get("content_type") != "calculation"]
+        calc_texts = [ev.get("content", "") for ev in evidence
+                      if ev.get("evidence_id") in (supporting or cited)
+                      and ev.get("content_type") == "calculation"]
         for num in NUM_RE.findall(text):
+            if DATE_RE.fullmatch(num):
+                continue
+            numbers_total += 1
             n = num.lstrip("-").rstrip(".")
-            in_ev = any(n in ev.get("content", "") for ev in evidence
-                        if ev.get("evidence_id") in (supporting or cited))
-            if not in_ev and n not in calculator_numbers and not DATE_RE.fullmatch(num):
+            in_page = any(n in t for t in page_texts)
+            in_calc_text = any(n in t for t in calc_texts)
+            rounded_match = False
+            if calculator_floats:
+                try:
+                    n_val = float(n)
+                except ValueError:
+                    n_val = None
+                if n_val is not None and any(
+                        abs(n_val - round(r, k)) < 1e-9 for r in calculator_floats for k in range(0, 7)):
+                    rounded_match = True  # display rounding of a VERIFIED calculation
+            grounded = in_page or in_calc_text or rounded_match or n in calculator_numbers
+            if in_calc_text or rounded_match or n in calculator_numbers:
+                numbers_from_calculator += 1
+            if grounded:
+                continue
+            # bounded derivation: N as the sum/difference of two numbers that
+            # BOTH appear in the cited evidence (e.g. headcount 245 - 210 = 35).
+            # Products/quotients are NOT derived here — those require the
+            # verified calculator.
+            if self._is_derivable(n, page_texts + calc_texts):
+                derived_note.append(n)
+            else:
                 missing_numbers.append(num)
         if missing_numbers:
             problems.append(f"numbers not found in cited evidence/calculations: {missing_numbers}")
@@ -151,8 +239,40 @@ class VerificationEngine:
         if missing_dates:
             problems.append(f"dates not found in cited evidence: {missing_dates}")
 
-        return {"text": text, "evidence_ids": supporting, "kind": claim.get("kind", "factual"),
-                "supported": not problems, "problems": problems}
+        if lacked_page_support:
+            if numbers_total > 0 and numbers_from_calculator == numbers_total:
+                pass  # every number is calculator-verified: the calculation IS the support
+            else:
+                problems.append("no admissible supporting evidence")
+        if derived_note:
+            problems = [p for p in problems if not p.startswith("numbers not found")]
+        verdict = {"text": text, "evidence_ids": supporting, "kind": claim.get("kind", "factual"),
+                   "supported": not problems, "problems": problems}
+        if derived_note:
+            verdict["derived_numbers"] = derived_note
+        return verdict
+
+    @staticmethod
+    def _is_derivable(target: str, texts: list[str]) -> bool:
+        """True iff target == |a-b| or a+b for some pair of numbers present in the
+        cited evidence texts. Deterministic; deliberately narrow."""
+        try:
+            t = float(target)
+        except ValueError:
+            return False
+        nums: list[float] = []
+        for t_text in texts:
+            for m in NUM_RE.findall(t_text):
+                try:
+                    nums.append(float(m.replace(",", "")))
+                except ValueError:
+                    continue
+        for i in range(len(nums)):
+            for j in range(i + 1, len(nums)):
+                a, b = nums[i], nums[j]
+                if any(abs(t - x) < 1e-6 for x in (a + b, abs(a - b))):
+                    return True
+        return False
 
     @staticmethod
     def _calc_numbers(calc_results: list[dict]) -> set[str]:

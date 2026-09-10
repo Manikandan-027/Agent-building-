@@ -18,6 +18,10 @@ GOOD_CORPUS = ("Acme Corporation FY2023 annual revenue was 50.2 million dollars,
 @pytest.fixture()
 def client(uow, settings):
     settings.env = "test"
+    settings = settings.__class__(_env_file=None, **{
+        k: getattr(settings, k) for k in ("database_url", "dev_api_key", "injection_threshold",
+                                          "openai_base_url", "openai_api_key", "openai_model")})
+    settings.env = "test"
     app = create_app(settings)
     app.state.context.db = uow.db  # share the test DB
     ctx = app.state.context

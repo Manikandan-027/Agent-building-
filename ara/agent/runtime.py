@@ -304,16 +304,18 @@ class AgentRuntime:
         with trace.span("finalize"):
             budget.pre_llm()
             try:
-                answer, _cites = self._draft_answer(state)
+                answer, proposed_citations = self._draft_answer(state)
             except Exception as exc:
                 state.add_error("draft", str(exc))
-                answer = "I could not produce an answer due to an internal error."
+                answer, proposed_citations = "I could not produce an answer due to an internal error.", []
 
             # claim-level verification: LLM proposes claim->evidence map, runtime validates
             llm_claim_map = None
             try:
+                cite_hint = f"The draft was produced citing these evidence ids: {proposed_citations}. " \
+                    if proposed_citations else ""
                 claim_prompt = ("CLAIMER\nExtract claims from the draft, each with the evidence ids "
-                                f"cited for it.\nDRAFT: {answer}")
+                                f"cited for it.\n{cite_hint}DRAFT: {answer}")
                 llm_claim_map = parse_json_object(self.llm.complete("CLAIMER", claim_prompt,
                                                                     json_mode=True, max_tokens=500).text)
             except Exception:
@@ -322,7 +324,8 @@ class AgentRuntime:
                             if r.tool == "calculator" and r.status == "ok" and isinstance(r.result, dict)]
             report = self.verifier.verify(answer, [e.model_dump() for e in state.evidence],
                                           state.task.verification_requirements,
-                                          calculator_results=calc_results, llm_proposal=llm_claim_map)
+                                          calculator_results=calc_results, llm_proposal=llm_claim_map,
+                                          default_citations=proposed_citations)
             state.verification = VerificationReport(**report)
 
             # strip unsupported claims unless refusing outright

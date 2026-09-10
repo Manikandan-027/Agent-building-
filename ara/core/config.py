@@ -11,6 +11,8 @@ from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from pydantic import AliasChoices, Field
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="ARA_", env_file=".env", extra="ignore")
@@ -19,26 +21,28 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     # LLM (OpenAI-compatible). Empty -> deterministic scripted provider.
-    openai_base_url: str = ""
-    openai_api_key: str = ""
-    openai_model: str = "gpt-4.1-mini"
+    # NOTE: these are intentionally read WITHOUT the ARA_ prefix (standard names,
+    # matching docker-compose and provider conventions) via AliasChoices.
+    openai_base_url: str = Field(default="", validation_alias=AliasChoices("OPENAI_BASE_URL", "ARA_OPENAI_BASE_URL"))
+    openai_api_key: str = Field(default="", validation_alias=AliasChoices("OPENAI_API_KEY", "ARA_OPENAI_API_KEY"))
+    openai_model: str = Field(default="gpt-4.1-mini", validation_alias=AliasChoices("OPENAI_MODEL", "ARA_OPENAI_MODEL"))
     # Task-based routing (optional): strongest model for planning, cheap model for
     # extractive roles (REASONER/ANSWERER/CLAIMER). Empty = use openai_model.
-    openai_model_planner: str = ""
-    openai_model_fast: str = ""
-    openai_fallback_models: str = ""  # comma separated
+    openai_model_planner: str = Field(default="", validation_alias=AliasChoices("OPENAI_MODEL_PLANNER", "ARA_OPENAI_MODEL_PLANNER"))
+    openai_model_fast: str = Field(default="", validation_alias=AliasChoices("OPENAI_MODEL_FAST", "ARA_OPENAI_MODEL_FAST"))
+    openai_fallback_models: str = Field(default="", validation_alias=AliasChoices("OPENAI_FALLBACK_MODELS", "ARA_OPENAI_FALLBACK_MODELS"))  # comma separated
     llm_timeout_s: float = 60.0
 
     # ColPali-family visual retrieval service
-    colpali_service_url: str = "http://localhost:8100"
-    colpali_mode: Literal["mock", "real"] = "mock"
+    colpali_service_url: str = Field(default="http://localhost:8100", validation_alias=AliasChoices("COLPALI_SERVICE_URL", "ARA_COLPALI_SERVICE_URL"))
+    colpali_mode: Literal["mock", "real"] = Field(default="mock", validation_alias=AliasChoices("COLPALI_MODE", "ARA_COLPALI_MODE"))
     retrieval_top_k: int = 5
     retrieval_min_score: float = 0.20
 
     # Storage
-    database_url: str = "sqlite:///./data/ara.db"
-    redis_url: str = ""
-    qdrant_url: str = ""
+    database_url: str = Field(default="sqlite:///./data/ara.db", validation_alias=AliasChoices("DATABASE_URL", "ARA_DATABASE_URL"))
+    redis_url: str = Field(default="", validation_alias=AliasChoices("REDIS_URL", "ARA_REDIS_URL"))
+    qdrant_url: str = Field(default="", validation_alias=AliasChoices("QDRANT_URL", "ARA_QDRANT_URL"))
 
     # Security
     api_key_sha256: str = ""  # comma-separated accepted key hashes (production)

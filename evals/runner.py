@@ -55,7 +55,7 @@ class ScenarioResult:
 def build_stack(seed_web: dict | None = None, extra_tools: list[ToolSpec] | None = None,
                 behaviors: list[ScriptedBehavior] | None = None):
     tmp = tempfile.mkdtemp()
-    settings = Settings(env="test", database_url=f"sqlite:///./{tmp}/eval.db",
+    settings = Settings(_env_file=None, env="test", database_url=f"sqlite:///./{tmp}/eval.db",
                         dev_api_key="eval", injection_threshold=0.55)
     db = Database(settings.database_url)
     db.connect()

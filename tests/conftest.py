@@ -8,6 +8,7 @@ from ara.db import UnitOfWork
 @pytest.fixture()
 def settings(tmp_path):
     return Settings(
+        _env_file=None,
         env="test",
         database_url=f"sqlite:///./{tmp_path}/test.db",
         dev_api_key="test-key",

@@ -7,7 +7,27 @@ tokens). A typical ARA task makes 4–6 small calls (~10–20K tokens total), so
 costs are roughly **$0.01–0.03 per task** — a few dollars per month for personal
 use, but never zero. For $0, use one of the options below.
 
-## 100% free configuration (recommended free stack, verified 2026-09)
+## 100% free configuration — WIRED & VERIFIED with Groq (2026-09)
+
+This project ships with the Groq free tier configured and empirically verified
+(probed live against this repo's actual prompts):
+
+| Role | Model | Measured behavior |
+|---|---|---|
+| PLANNER (`OPENAI_MODEL_PLANNER`) | **`openai/gpt-oss-120b`** | strict-JSON plan, correct retrieve→(reason)→final_answer structure, ~1.1s |
+| REASONER/ANSWERER/CLAIMER (`OPENAI_MODEL_FAST`) | **`qwen/qwen3.8-27b`** | extractive answers with correct citation ids, ~0.3s, reliable JSON |
+| fallbacks | `openai/gpt-oss-20b` (answerer-capable; JSON-mode flaky as planner) | auto-failover on errors/429 |
+
+Rejected in probing: `qwen/qwen3.6-27b` (incomplete plans + immediate 429s),
+`groq/compound*` (self-agentic — would bypass ARA's governed tool pipeline),
+`gpt-oss-safeguard-20b`/prompt-guard (safety classifiers, not generators),
+whisper/orpheus (audio).
+
+Free-tier reality: ~1,000 requests/day on gpt-oss-120b (≈4–6 calls per task ⇒
+≈150–250 tasks/day), 30 RPM. On 429 the provider retries with backoff down the
+fallback chain, then the task fails safely with a budget-stop style explanation.
+
+**Previous generic recommendation (verified 2026-09):**
 
 Best free pick for THIS project: **Google Gemini 2.5 Flash (AI Studio free tier)** —
 ARA sends *large evidence prompts* (1M TPM matters) and needs strict JSON; Gemini

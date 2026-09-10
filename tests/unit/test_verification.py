@@ -8,9 +8,9 @@ from ara.guardrails import InjectionDetector
 
 
 def make_ev(mgr, content, *, doc="doc_1", page=1, trust=ContentTrust.RETRIEVED, source="internal_corpus",
-            ev_id=None):
+            ev_id=None, content_type="visual_document_page"):
     ev = mgr.make(content=content, document_id=doc, page=page, trust=trust, source=source,
-                  relevance_score=0.9)
+                  content_type=content_type, relevance_score=0.9)
     ev["evidence_id"] = ev_id or f"ev_{doc}_{page}"
     return ev
 
@@ -150,3 +150,88 @@ def test_unresolved_conflict_resolution_reports_unresolved(mgr, engine):
     conflicts = engine.detect_conflicts([a, b])
     assert conflicts and conflicts[0]["resolution"]["strategy"] == "unresolved"
     assert conflicts[0]["resolution"]["prefer"] is None
+
+
+def test_structured_citations_ground_claims(mgr, engine):
+    """Real-LLM flow: the answerer returns citations as a JSON array (not inline
+    [ev_*] markers). Claims must still be verified against that evidence."""
+    ev = make_ev(mgr, "FY2023 revenue was $50.2 million, up 12 percent.", ev_id="ev_struct1")
+    draft = "FY2023 revenue was $50.2 million, up 12 percent."
+    report = engine.verify(draft, [ev], VerificationRequirements(),
+                           default_citations=["ev_struct1"])
+    assert not report["refused"]
+    assert report["claims"][0]["supported"] is True
+    assert report["claims"][0]["evidence_ids"] == ["ev_struct1"]
+    assert report["answer_supported"] is True
+
+
+def test_structured_citations_still_require_support(mgr, engine):
+    """Default citations are not blind trust: numbers must still match evidence."""
+    ev = make_ev(mgr, "FY2023 revenue was $50.2 million.", ev_id="ev_struct2")
+    report = engine.verify("FY2023 revenue was $99.9 million.", [ev],
+                           VerificationRequirements(), default_citations=["ev_struct2"])
+    assert report["refused"]
+
+
+def test_normalize_strips_wrapper_tags_but_keeps_valid_ids(mgr, engine):
+    a = make_ev(mgr, "Revenue was 50.2 million dollars in FY2023.", ev_id="call_x1")
+    idx = {"call_x1": a, "ev_doc9": make_ev(mgr, "x", ev_id="ev_doc9")}
+    n = engine.normalize_evidence_ref
+    assert n("call_x1", idx) == "call_x1"                      # exact
+    assert n("UNTRUSTED_EV_call_x1", idx) == "call_x1"          # wrapper tag copied by model
+    assert n("ev_call_x1", idx) == "call_x1"                    # double prefix
+    assert n("ev_doc9", idx) == "ev_doc9"                       # VALID id untouched
+    assert n("ev_nonexistent", idx) is None                     # never invents
+
+
+def test_derived_sum_difference_numbers_are_grounded(mgr, engine):
+    """'an increase of 35 employees' where cited evidence says 'from 210 to 245'."""
+    ev = make_ev(mgr, "Headcount grew from 210 to 245 employees during 2023.", ev_id="ev_hc")
+    report = engine.verify("Headcount grew by 35 employees [ev_hc].", [ev],
+                           VerificationRequirements())
+    assert not report["refused"]
+    assert report["claims"][0]["supported"] is True
+    assert report["claims"][0].get("derived_numbers") == ["35"]
+
+
+def test_derived_products_still_require_calculator(mgr, engine):
+    ev = make_ev(mgr, "The units sold were 210 and the price was 245 dollars.", ev_id="ev_p")
+    report = engine.verify("Total value was 51450 [ev_p].", [ev], VerificationRequirements())
+    assert report["claims"][0]["supported"] is False
+
+
+def test_rounded_calculator_results_are_grounded(mgr, engine):
+    """Models present verified calculations rounded (12.05% vs 12.0535...);
+    display rounding of a VERIFIED calculation must pass, fabrications must not."""
+    ev = make_ev(mgr, "Revenue was 44.8 million dollars in FY2022 and 50.2 million in FY2023.",
+                 ev_id="ev_growth")
+    report = engine.verify(
+        "The growth rate was approximately 12.05 percent [ev_growth].",
+        [ev], VerificationRequirements(),
+        calculator_results=[{"result": (50.2 - 44.8) / 44.8 * 100}])
+    assert not report["refused"]
+    assert report["claims"][0]["supported"] is True
+
+
+def test_rounded_tolerance_still_rejects_fabrication(mgr, engine):
+    ev = make_ev(mgr, "Revenue was 44.8 million dollars in FY2022.", ev_id="ev_x")
+    report = engine.verify("The growth rate was approximately 99.9 percent [ev_x].",
+                           [ev], VerificationRequirements(),
+                           calculator_results=[{"result": 12.053571428571429}])
+    assert report["refused"]
+
+
+def test_percent_change_claim_grounded_by_calculation_evidence(mgr, engine):
+    """Full real-model flow: rounded percent from calculator, claim tokens differ
+    from the page; support comes from the calculation evidence."""
+    page = make_ev(mgr, "Revenue was 44.8 million dollars in FY2022 and 50.2 million in FY2023.",
+                   ev_id="ev_page")
+    calc = make_ev(mgr, '{"calculation": "(50.2 - 44.8) / 44.8 * 100", "result": 12.053571428571443, "result_str": "12.0536"}',
+                   doc="calculator", content_type="calculation", source="calculation",
+                   ev_id="call_c1")
+    report = engine.verify("The growth rate was 12.05 percent.",
+                           [page, calc], VerificationRequirements(),
+                           calculator_results=[{"result": 12.053571428571443}],
+                           default_citations=["call_c1"])
+    assert not report["refused"], report
+    assert report["claims"][0]["supported"] is True
