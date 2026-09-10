@@ -1,0 +1,18 @@
+# ARA runtime dependencies (Python 3.11+)
+# Install:  python -m pip install -r requirements.txt
+# Dev tools (pytest, ruff):  python -m pip install -e ".[dev]"
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.7
+pydantic-settings>=2.2
+httpx>=0.27
+jsonschema>=4.21
+pypdf>=4.0
+PyYAML>=6.0
+pillow>=10.2
+python-multipart>=0.0.9
+
+# ---- optional, production backends (not needed for local dev) ----
+# psycopg[binary]>=3.1      # PostgreSQL
+# redis>=5.0                # Redis
+# qdrant-client>=1.9        # Qdrant vector DB
