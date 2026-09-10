@@ -1,0 +1,9 @@
+# Real ColPali/ColQwen2 inference (GPU host required).
+# Install inside a CUDA image (e.g. nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.44)
+# or a host with matching torch wheels. NOT installed by default: the backend and
+# CI run the deterministic mock embedder; real mode fails closed if unavailable.
+torch>=2.3
+transformers>=4.44
+colpali-engine>=0.3.4
+pillow>=10.2
+accelerate>=0.30

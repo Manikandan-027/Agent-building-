@@ -1,0 +1,92 @@
+name: ara
+
+services:
+  backend:
+    build: .
+    ports: ["8000:8000"]
+    environment:
+      ARA_ENV: production
+      ARA_DATABASE_URL: postgresql://ara:${POSTGRES_PASSWORD:-ara_dev_pw}@postgres:5432/ara
+      ARA_REDIS_URL: redis://redis:6379/0
+      ARA_QDRANT_URL: http://qdrant:6333
+      COLPALI_SERVICE_URL: http://colpali:8100
+      COLPALI_MODE: mock
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      ARA_API_KEY_SHA256: ${ARA_API_KEY_SHA256:-}
+      ARA_DEV_API_KEY: ${ARA_DEV_API_KEY:-ara-dev-key-change-me}
+      ARA_MCP_SERVERS: ${ARA_MCP_SERVERS:-}
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_started }
+      qdrant: { condition: service_started }
+      colpali: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  worker:
+    build: .
+    command: ["python", "-m", "ara.service.worker"]
+    environment:
+      ARA_ENV: production
+      ARA_DATABASE_URL: postgresql://ara:${POSTGRES_PASSWORD:-ara_dev_pw}@postgres:5432/ara
+      ARA_REDIS_URL: redis://redis:6379/0
+      ARA_QDRANT_URL: http://qdrant:6333
+      COLPALI_SERVICE_URL: http://colpali:8100
+      COLPALI_MODE: mock
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      ARA_MCP_SERVERS: ${ARA_MCP_SERVERS:-}
+    depends_on:
+      backend: { condition: service_healthy }
+    deploy:
+      replicas: 2
+
+  colpali:
+    build:
+      context: .
+      dockerfile: colpali_service.Dockerfile
+    ports: ["8100:8100"]
+    environment:
+      COLPALI_MODE: mock
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8100/health')"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+    # GPU profile for REAL ColQwen2 inference:
+    #   docker compose --profile gpu up
+    #   (swap COLPALI_MODE=real and attach nvidia runtime + requirements-colpali)
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ara
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ara_dev_pw}
+      POSTGRES_DB: ara
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ara"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redisdata:/data]
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports: ["6333:6333"]
+    volumes: [qdrantdata:/qdrant/storage]
+
+volumes:
+  pgdata:
+  redisdata:
+  qdrantdata:
