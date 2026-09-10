@@ -288,15 +288,8 @@ class AgentRuntime:
         evidence_blocks = "\n\n".join(
             wrap_untrusted_block(e.content[:1500], f"EV_{e.evidence_id}")
             for e in state.evidence if self.em.is_groundedable(e))
-        prompt = (
-            f"ANSWERER\nREQUEST: {state.task.user_request}\n\n"
-            "EVIDENCE (cite evidence ids exactly as given; if insufficient, answer NOT VERIFIABLE):\n"
-            f"{evidence_blocks or '(no admissible evidence)'}\n\n"
-            + (f"OBSERVATIONS:\n{json.dumps(state.scratch.get('observations', [])[-3:])}\n"
-               if state.scratch.get("observations") else "")
-            + '\nReturn ONLY JSON: {"answer": str, "citations": [evidence ids], '
-              '"confidence": float, "unverified": bool}'
-        )
+        prompt = build_answerer_prompt(state.task.user_request, evidence_blocks,
+                                       state.scratch.get("observations", [])[-3:])
         resp = self.llm.complete("ANSWERER", prompt, json_mode=True, max_tokens=900)
         try:
             data = parse_json_object(resp.text)
@@ -499,3 +492,16 @@ class AgentRuntime:
         else:
             self.uow.tasks.update_state(state.task.task_id, payload, state.status.value,
                                         state.final_answer)
+
+
+def build_answerer_prompt(user_request: str, evidence_blocks: str,
+                          observations: list | None = None) -> str:
+    """Single source of truth for the answerer prompt (inference + fine-tuning)."""
+    return (
+        f"ANSWERER\nREQUEST: {user_request}\n\n"
+        "EVIDENCE (cite evidence ids exactly as given; if insufficient, answer NOT VERIFIABLE):\n"
+        f"{evidence_blocks or '(no admissible evidence)'}\n\n"
+        + (f"OBSERVATIONS:\n{json.dumps(observations or [])}\n" if observations else "")
+        + '\nReturn ONLY JSON: {"answer": str, "citations": [evidence ids], '
+          '"confidence": float, "unverified": bool}'
+    )

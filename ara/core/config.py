@@ -21,7 +21,11 @@ class Settings(BaseSettings):
     # LLM (OpenAI-compatible). Empty -> deterministic scripted provider.
     openai_base_url: str = ""
     openai_api_key: str = ""
-    openai_model: str = "gpt-4o-mini"
+    openai_model: str = "gpt-4.1-mini"
+    # Task-based routing (optional): strongest model for planning, cheap model for
+    # extractive roles (REASONER/ANSWERER/CLAIMER). Empty = use openai_model.
+    openai_model_planner: str = ""
+    openai_model_fast: str = ""
     openai_fallback_models: str = ""  # comma separated
     llm_timeout_s: float = 60.0
 

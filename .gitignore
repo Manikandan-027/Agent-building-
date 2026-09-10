@@ -12,3 +12,4 @@ dist/
 build/
 *.db
 .DS_Store
+tmp/

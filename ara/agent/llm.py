@@ -248,6 +248,29 @@ class ScriptedProvider:
         return json.dumps({"claims": claims[:12]})
 
 
+TASK_TAGS = ("PLANNER", "REASONER", "ANSWERER", "CLAIMER")
+
+
+def route_models(system: str, *, default: str, planner_model: str, fast_model: str,
+                 fallbacks: list[str]) -> list[str]:
+    """Deterministic task->model routing. The system prompt's task tag selects the
+    candidate list; the first reachable model wins. PLANNER gets the strongest
+    model (plan quality drives the whole run); extractive roles get the fast/cheap
+    model. Routing happens in code — the model cannot influence it."""
+    tag = system.strip().split(":")[0].strip().upper()
+    primary = default
+    if tag == "PLANNER" and planner_model:
+        primary = planner_model
+    elif tag in ("REASONER", "ANSWERER", "CLAIMER") and fast_model:
+        primary = fast_model
+    ordered, seen = [], set()
+    for m in [primary, default, *fallbacks]:
+        if m and m not in seen:
+            seen.add(m)
+            ordered.append(m)
+    return ordered
+
+
 class OpenAICompatibleProvider:
     """Talks to any OpenAI-compatible /v1/chat/completions endpoint.
 
@@ -258,13 +281,15 @@ class OpenAICompatibleProvider:
     name = "openai_compatible"
 
     def __init__(self, base_url: str, api_key: str, model: str, fallback_models: list[str] | None = None,
-                 timeout_s: float = 60.0):
+                 timeout_s: float = 60.0, planner_model: str = "", fast_model: str = ""):
         if not base_url or not api_key:
             raise LLMError("OpenAI-compatible provider requires base_url and api_key")
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.model = model
         self.fallback_models = fallback_models or []
+        self.planner_model = planner_model
+        self.fast_model = fast_model
         self.timeout_s = timeout_s
 
     def complete(self, system: str, user: str, *, json_mode: bool = False, max_tokens: int = 1024,
@@ -276,8 +301,10 @@ class OpenAICompatibleProvider:
         }
         if json_mode:
             payload["response_format"] = {"type": "json_object"}
+        candidates = route_models(system, default=self.model, planner_model=self.planner_model,
+                                  fast_model=self.fast_model, fallbacks=self.fallback_models)
         errors: list[str] = []
-        for model in [self.model, *self.fallback_models]:
+        for model in candidates:
             payload["model"] = model
             try:
                 return self._call(payload, model)
@@ -320,10 +347,14 @@ class OpenAICompatibleProvider:
 def make_provider(settings) -> LLMProvider:
     """Factory: real provider when configured, deterministic scripted provider otherwise."""
     if settings.openai_base_url and settings.openai_api_key:
-        log.info("llm_provider_openai_compatible", extra={"fields": {"model": settings.openai_model}})
+        log.info("llm_provider_openai_compatible",
+                 extra={"fields": {"model": settings.openai_model,
+                                   "planner_model": settings.openai_model_planner or settings.openai_model,
+                                   "fast_model": settings.openai_model_fast or settings.openai_model}})
         return OpenAICompatibleProvider(
             settings.openai_base_url, settings.openai_api_key, settings.openai_model,
             settings.fallback_models, settings.llm_timeout_s,
+            planner_model=settings.openai_model_planner, fast_model=settings.openai_model_fast,
         )
     log.info("llm_provider_scripted", extra={"fields": {"reason": "no OPENAI_BASE_URL/OPENAI_API_KEY configured"}})
     return ScriptedProvider()

@@ -33,6 +33,30 @@ ARITH_RE = re.compile(
 CLOCK_RE = re.compile(r"(?i)\b(what(?:'s| is) the (current )?time|current (utc )?time|today'?s date)\b")
 
 
+def build_planner_prompt(contract: TaskContract, catalog: str, memory_context: str = "",
+                         corpus_size: int = 0) -> str:
+    """Single source of truth for the planner prompt — used at inference AND for
+    fine-tuning data generation (train/serve format skew would be a bug)."""
+    return (
+        "You are the PLANNER of a grounded research agent.\n"
+        f"DOCUMENT CORPUS: {corpus_size} pages are RETRIEVABLE via the retrieve action.\n"
+        f"REQUEST: {contract.user_request}\n"
+        f"NORMALIZED GOAL: {contract.normalized_goal or '(derive it)'}\n"
+        f"CONSTRAINTS: {contract.constraints or 'none'}\n"
+        f"FORBIDDEN ACTIONS: {contract.forbidden_actions or 'none'}\n"
+        f"ALLOWED TOOLS (only these may be called): "
+        f"{contract.allowed_tools or 'all visible tools'}\n"
+        f"TOOLS:\n{catalog or '(no tools)'}\n"
+        f"MEMORY:\n{memory_context or '(none)'}\n\n"
+        "Return ONLY a JSON object:\n"
+        '{"goal": str, "rationale": str, "steps": [{"description": str, '
+        '"action": "retrieve|tool_call|reason|final_answer", "tool": str|null, '
+        '"args": object|null, "query": str|null, "depends_on": [step indices as ints]}]}\n'
+        "Rules: <=8 steps; prefer the fewest needed; retrieve BEFORE answering; "
+        "end with one final_answer step; NEVER plan actions that are forbidden."
+    )
+
+
 class Planner:
     def __init__(self, llm: LLMProvider, registry: ToolRegistry):
         self.llm = llm
@@ -41,24 +65,7 @@ class Planner:
     # ------------------------------------------------------------------ prompts
     def _planner_prompt(self, contract: TaskContract, catalog: str, memory_context: str,
                         corpus_size: int = 0) -> str:
-        return (
-            "You are the PLANNER of a grounded research agent.\n"
-            f"DOCUMENT CORPUS: {corpus_size} pages are RETRIEVABLE via the retrieve action.\n"
-            f"REQUEST: {contract.user_request}\n"
-            f"NORMALIZED GOAL: {contract.normalized_goal or '(derive it)'}\n"
-            f"CONSTRAINTS: {contract.constraints or 'none'}\n"
-            f"FORBIDDEN ACTIONS: {contract.forbidden_actions or 'none'}\n"
-            f"ALLOWED TOOLS (only these may be called): "
-            f"{contract.allowed_tools or 'all visible tools'}\n"
-            f"TOOLS:\n{catalog or '(no tools)'}\n"
-            f"MEMORY:\n{memory_context or '(none)'}\n\n"
-            "Return ONLY a JSON object:\n"
-            '{"goal": str, "rationale": str, "steps": [{"description": str, '
-            '"action": "retrieve|tool_call|reason|final_answer", "tool": str|null, '
-            '"args": object|null, "query": str|null, "depends_on": [step indices as ints]}]}\n'
-            "Rules: <=8 steps; prefer the fewest needed; retrieve BEFORE answering; "
-            "end with one final_answer step; NEVER plan actions that are forbidden."
-        )
+        return build_planner_prompt(contract, catalog, memory_context, corpus_size)
 
     # ------------------------------------------------------------------ propose
     def propose(self, contract: TaskContract, catalog: str, memory_context: str = "",

@@ -103,6 +103,19 @@ embeddings. Production activates Postgres, Redis and Qdrant purely via env confi
 - Measured behavior, including failure modes, is published in
   [`EVALUATION.md`](EVALUATION.md). We do not claim "hallucination-free".
 
+## Model selection & fine-tuning
+
+Default model: **`gpt-4.1-mini`** (best JSON/tool reliability per dollar; any
+OpenAI-compatible endpoint works — OpenRouter, Gemini, Groq, vLLM, Azure).
+The runtime routes by task: the PLANNER can use a stronger model
+(`OPENAI_MODEL_PLANNER`) while extractive roles (REASONER/ANSWERER/CLAIMER) use a
+cheap fast one (`OPENAI_MODEL_FAST`) — routing is enforced in code.
+
+Fine-tuning is **not required** for v1; when you have ≥300 verified episodes,
+mine them with `scripts/prepare_finetune_data.py` (only provably-good runs pass
+the quality gate) and train via `scripts/run_finetune.py` (API SFT, dry-run by
+default) or the LoRA path in `training/lora/`. Details: [`MODEL_SELECTION.md`](MODEL_SELECTION.md).
+
 ## Repository
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the layer-by-layer design and control
