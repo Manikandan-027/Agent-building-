@@ -23,6 +23,11 @@ GROUNDAUTH_TRUST = {ContentTrust.APP_DATA.value, ContentTrust.RETRIEVED.value,
 QUARANTINE_TRUST = {ContentTrust.MODEL.value}
 
 
+def as_evidence_dict(ev) -> dict:
+    """Accept pydantic Evidence or plain dict (state round-trips through JSON)."""
+    return ev.model_dump() if hasattr(ev, "model_dump") else ev
+
+
 class EvidenceManager:
     def __init__(self, detector: InjectionDetector, source_authority: dict[str, str] | None = None):
         self.detector = detector
@@ -55,15 +60,17 @@ class EvidenceManager:
         return ev
 
     @staticmethod
-    def is_groundedable(ev: dict) -> bool:
+    def is_groundedable(ev) -> bool:
         """Flagged injections and model text can never support claims."""
+        ev = as_evidence_dict(ev)
         if ev.get("injection_scan", {}).get("flagged"):
             return False
         return ev.get("source_trust") in GROUNDAUTH_TRUST
 
     @staticmethod
-    def by_id(evidence: Iterable[dict], evidence_id: str) -> dict | None:
+    def by_id(evidence: Iterable, evidence_id: str) -> dict | None:
         for ev in evidence:
-            if ev.get("evidence_id") == evidence_id:
-                return ev
+            d = as_evidence_dict(ev)
+            if d.get("evidence_id") == evidence_id:
+                return d
         return None

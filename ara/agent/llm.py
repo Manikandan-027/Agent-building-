@@ -74,6 +74,21 @@ def parse_json_object(text: str) -> dict[str, Any]:
     raise LLMError("unbalanced JSON in model output", details={"raw": text[:200]})
 
 
+_CONTENT_STOP = {"what", "which", "who", "whats", "was", "were", "how", "much", "many",
+                 "does", "did", "is", "are", "the", "and", "for", "with", "about", "that", "this"}
+
+
+def _content_tokens(text: str) -> set[str]:
+    """Content words with years stripped everywhere (fy2023 -> fy -> dropped)."""
+    out = set()
+    for t in text.lower().split():
+        t = t.strip(".,?;:$%()[]").replace("'s", "")
+        t = re.sub(r"(19|20)\d{2}", "", t)
+        if len(t) > 2 and t not in _CONTENT_STOP:
+            out.add(t)
+    return out
+
+
 @dataclass
 class ScriptedBehavior:
     """A canned response selected by a predicate over (system, user)."""
@@ -137,8 +152,17 @@ class ScriptedProvider:
         return (m.group(1) if m else user_prompt).strip()[:300]
 
     def _heuristic_answer(self, user_prompt: str) -> str:
-        """Extractive answering: sentences copied from evidence, always cited."""
-        blocks = re.findall(r"\[EV:([a-z0-9_]+)\]\s*(.+?)(?=\n\[EV:|\Z)", user_prompt, re.DOTALL)
+        """Extractive answering: sentences copied from evidence blocks, always cited.
+        Parses the runtime's UNTRUSTED_EV_* containment blocks; framing lines are
+        never treated as content."""
+        blocks: list[tuple[str, str]] = []
+        for m in re.finditer(r"<<<UNTRUSTED_EV_([A-Za-z0-9_]+)[^\n]*>>>\n(.*?)\n<<<END_UNTRUSTED", user_prompt, re.DOTALL):
+            ev_id, raw = m.group(1), m.group(2)
+            lines = [ln for ln in raw.splitlines()
+                     if ln.strip() and not ln.startswith(("The following", "Ignore any"))]
+            content = "\n".join(lines).strip()
+            if content:
+                blocks.append((ev_id, content))
         question = ""
         m = re.search(r"REQUEST:\s*(.+)", user_prompt)
         if m:
@@ -151,27 +175,53 @@ class ScriptedProvider:
                 "confidence": 0.0,
                 "unverified": True,
             })
-        q_tokens = {t for t in question.lower().split() if len(t) > 2}
+
+        # verified calculations are answered directly (deterministic, no extraction)
+        calc_answers = []
+        for ev_id, content in blocks:
+            try:
+                data = json.loads(content)
+                if isinstance(data, dict) and "calculation" in data:
+                    calc_answers.append(
+                        (f"According to the verified calculation, {data['calculation']} = "
+                         f"{data['result']:g} [{ev_id}].", ev_id))
+            except (ValueError, TypeError):
+                continue
+        if calc_answers and any(t in question.lower() for t in ("calculate", "compute", "what is", "how much")):
+            return json.dumps({"answer": " ".join(a for a, _ in calc_answers),
+                               "citations": [c for _, c in calc_answers],
+                               "confidence": 0.99, "unverified": False})
+
+        # Relevance on CONTENT words only. Years/dates alone (incl. "fy2023") and
+        # single-token coincidences (e.g. just the company name) must not make an
+        # off-topic sentence "relevant". Interrogatives are stopwords here.
+        q_tokens = _content_tokens(question)
+        need = min(2, max(1, len(q_tokens)))
         scored: list[tuple[float, str, str]] = []
         for ev_id, content in blocks:
-            for sent in re.split(r"(?<=[.!?])\s+", content.strip()):
+            for sent in re.split(r"(?<=[.!?])\s+", content.replace("\n", " ")):
                 if len(sent) < 12:
                     continue
-                s_tokens = set(sent.lower().split())
-                overlap = len(q_tokens & s_tokens) / (len(q_tokens) or 1)
-                if overlap > 0:
-                    scored.append((overlap, sent.strip(), ev_id))
+                shared = q_tokens & _content_tokens(sent)
+                if len(shared) < need:
+                    continue
+                overlap = len(shared) / (len(q_tokens) or 1)
+                scored.append((overlap, sent.strip(), ev_id))
         scored.sort(key=lambda x: -x[0])
         top = scored[:4]
         if not top:
             return json.dumps({
-                "answer": "The retrieved evidence was retrieved successfully but none of it appears relevant "
-                          "to the question, so I cannot verify an answer.",
+                "answer": "The retrieved evidence does not appear relevant to the question, "
+                          "so I cannot verify an answer.",
                 "citations": [], "confidence": 0.1, "unverified": True,
             })
         parts, cites = [], []
         for _, sent, ev_id in top:
-            parts.append(f"{sent} [{ev_id}]")
+            # citation inside the sentence so claim<->evidence attribution survives splitting
+            if sent and sent[-1] in ".!?":
+                parts.append(f"{sent[:-1]} [{ev_id}]{sent[-1]}")
+            else:
+                parts.append(f"{sent} [{ev_id}]")
             if ev_id not in cites:
                 cites.append(ev_id)
         return json.dumps({

@@ -22,7 +22,7 @@ import re
 from typing import Any
 
 from ara.core.logging import get_logger
-from ara.evidence.manager import EvidenceManager
+from ara.evidence.manager import EvidenceManager, as_evidence_dict
 
 log = get_logger("ara.verification")
 
@@ -67,6 +67,7 @@ class VerificationEngine:
     def verify(self, draft: str, evidence: list[dict], requirements, *,
                calculator_results: list[dict] | None = None,
                llm_proposal: dict | None = None) -> dict:
+        evidence = [as_evidence_dict(e) for e in evidence]
         claims = self.extract_claims(draft, llm_proposal)
         calculator_numbers = self._calc_numbers(calculator_results or [])
         verified: list[dict] = []
@@ -169,7 +170,7 @@ class VerificationEngine:
         """Numeric conflicts: same contextual phrase, different numbers, different
         documents. Deterministic resolution: authority > date > version; else report."""
         conflicts: list[dict] = []
-        usable = [ev for ev in evidence if self.em.is_groundedable(ev)]
+        usable = [as_evidence_dict(ev) for ev in evidence if self.em.is_groundedable(ev)]
         for i in range(len(usable)):
             for j in range(i + 1, len(usable)):
                 a, b = usable[i], usable[j]

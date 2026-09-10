@@ -80,3 +80,30 @@ class BudgetState:
             "tokens": self.cost.input_tokens + self.cost.output_tokens, "cost_usd": round(self.cost.cost_usd, 6),
             "stop_reason": self.stop_reason,
         }
+
+    # -- durable suspend/resume -------------------------------------------
+    def serialize(self) -> dict:
+        return {
+            "max_iterations": self.max_iterations, "max_tool_calls": self.max_tool_calls,
+            "max_llm_calls": self.max_llm_calls, "max_tokens": self.max_tokens,
+            "max_cost_usd": self.max_cost_usd, "time_remaining_s": round(self.time_remaining_s, 3),
+            "iterations": self.iterations, "tool_calls": self.tool_calls, "llm_calls": self.llm_calls,
+            "input_tokens": self.cost.input_tokens, "output_tokens": self.cost.output_tokens,
+            "stop_reason": self.stop_reason,
+        }
+
+    @classmethod
+    def restore(cls, data: dict, price_in: float, price_out: float) -> "BudgetState":
+        b = cls(
+            max_iterations=data["max_iterations"], max_tool_calls=data["max_tool_calls"],
+            max_llm_calls=data["max_llm_calls"], max_tokens=data["max_tokens"],
+            max_cost_usd=data["max_cost_usd"], deadline=time.monotonic() + float(data["time_remaining_s"]),
+            cost=CostMeter(price_in, price_out),
+        )
+        b.iterations = data.get("iterations", 0)
+        b.tool_calls = data.get("tool_calls", 0)
+        b.llm_calls = data.get("llm_calls", 0)
+        b.stop_reason = data.get("stop_reason")
+        b.cost.input_tokens = data.get("input_tokens", 0)
+        b.cost.output_tokens = data.get("output_tokens", 0)
+        return b
