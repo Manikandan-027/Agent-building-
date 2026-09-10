@@ -256,7 +256,13 @@
 const $ = id => document.getElementById(id);
 const esc = s => { const d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; };
 
-let KEY = localStorage.getItem("ara_key") || "ara-dev-key-change-me";
+let KEY = "ara-dev-key-change-me";
+const store = (() => {
+  // sandboxed preview iframes throw on localStorage access — fall back to in-memory
+  try { localStorage.setItem("__ara_t", "1"); localStorage.removeItem("__ara_t"); return localStorage; }
+  catch (e) { const m = {}; return { getItem: k => (k in m ? m[k] : null), setItem: (k, v) => { m[k] = String(v); } }; }
+})();
+KEY = store.getItem("ara_key") || KEY;
 $("keyInput").value = KEY;
 
 function toast(msg, kind = "", ms = 4200) {
