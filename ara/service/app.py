@@ -175,6 +175,7 @@ def create_app(settings=None) -> FastAPI:
                 "final_answer": row["final_answer"], "created_at": row["created_at"],
                 "goal": state.get("task", {}).get("normalized_goal", ""),
                 "plan": state.get("plan"), "steps": _step_summaries(state),
+                "verification": state.get("verification"),
                 "errors": state.get("errors", []),
                 "approval_request_id": state.get("approval_request_id")}
 

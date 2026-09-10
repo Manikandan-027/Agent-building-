@@ -55,7 +55,7 @@ class ScenarioResult:
 def build_stack(seed_web: dict | None = None, extra_tools: list[ToolSpec] | None = None,
                 behaviors: list[ScriptedBehavior] | None = None):
     tmp = tempfile.mkdtemp()
-    settings = Settings(_env_file=None, env="test", database_url=f"sqlite:///./{tmp}/eval.db",
+    settings = Settings(_env_file=None, env="test", database_url=f"sqlite:///{tmp}/eval.db",
                         dev_api_key="eval", injection_threshold=0.55)
     db = Database(settings.database_url)
     db.connect()
@@ -121,6 +121,31 @@ def load_scenarios(path: str | Path) -> list[dict]:
     return data["scenarios"]
 
 
+def _synthetic_pdf(lines: list[str]) -> bytes:
+    """Build a minimal but fully valid single-page PDF containing `lines`."""
+    text = " ".join(f"({l}) Tj T*" for l in lines).encode()
+    stream = b"BT /F1 14 Tf 72 720 Td 14 TL\n" + text + b"\nET"
+    objs = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R"
+        b" /Resources << /Font << /F1 5 0 R >> >> >>",
+        b"<< /Length %d >>\nstream\n%s\nendstream" % (len(stream), stream),
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+    out = b"%PDF-1.4\n"
+    offsets = []
+    for i, obj in enumerate(objs, 1):
+        offsets.append(len(out))
+        out += b"%d 0 obj\n%s\nendobj\n" % (i, obj)
+    xref = len(out)
+    out += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objs) + 1)
+    for off in offsets:
+        out += b"%010d 00000 n \n" % off
+    out += b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF" % (len(objs) + 1, xref)
+    return out
+
+
 def run_scenario(sc: dict) -> ScenarioResult:
     res = ScenarioResult(scenario_id=sc["id"], category=sc["category"], passed=False)
     behaviors = []
@@ -141,8 +166,17 @@ def run_scenario(sc: dict) -> ScenarioResult:
         stack["registry"].register(ToolSpec(**t))
     try:
         for doc in sc.get("corpus", []):
+            content = doc["content"]
+            if doc["filename"].lower().endswith(".pdf") and not content.lstrip().startswith("%PDF"):
+                # YAML corpus carries plain text; ship it as a real PDF so the
+                # true PDF extraction path is exercised (placeholder => empty pages,
+                # which the agent must refuse to answer from).
+                lines = [] if content == "placeholder-not-read" else [content]
+                content_bytes = _synthetic_pdf(lines)
+            else:
+                content_bytes = content.encode()
             stack["ingest"].ingest(tenant_id="ten_eval", filename=doc["filename"],
-                                   content=doc["content"].encode())
+                                   content=content_bytes)
         contract = TaskContract(
             user_request=sc["request"],
             risk_level=sc.get("risk_level", "LOW"),

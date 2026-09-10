@@ -97,12 +97,10 @@ INFO:     Uvicorn running on http://0.0.0.0:8000
 
 ## 6. Verify it works
 
-**Health check** — open <http://localhost:8000/health> in a browser, or:
-```bash
-curl http://localhost:8000/health
-```
-
-**Interactive API docs** — open <http://localhost:8000/docs> (try every endpoint from the browser).
+**Health check** — open <http://localhost:8000> for the **built-in console UI**
+(chat, document upload, task inspector with verification & trace, memory viewer —
+set your API key in the top-right, default `ara-dev-key-change-me`), or
+<http://localhost:8000/docs> for the raw Swagger API.
 
 **Ask the agent something** (from the repo root):
 ```bash

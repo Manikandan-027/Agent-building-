@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import os
 from io import BytesIO
+from pathlib import Path
 
 from ara.core.errors import ValidationError
 from ara.core.ids import iso_now
@@ -27,6 +29,10 @@ log = get_logger("ara.ingest")
 
 MAX_DOC_BYTES = 30 * 1024 * 1024
 MAX_PAGES = 300
+
+# Page images always land under the project's data/ directory, regardless of
+# the process working directory (uvicorn may be started from anywhere).
+_DATA_DIR = Path(os.environ.get("ARA_DATA_DIR", Path(__file__).resolve().parents[2] / "data"))
 
 
 def render_page_image(text: str, page_number: int, title: str) -> bytes:
@@ -50,8 +56,12 @@ def extract_pdf(text_bytes: bytes) -> list[dict]:
     """Returns [{'page': n, 'text': ...}, ...] using pypdf (no OCR dependency)."""
     from pypdf import PdfReader
 
-    reader = PdfReader(BytesIO(text_bytes))
-    if len(reader.pages) > MAX_PAGES:
+    try:
+        reader = PdfReader(BytesIO(text_bytes))
+        n_pages = len(reader.pages)
+    except Exception as exc:  # noqa: BLE001 — corrupt input must fail as validation, not a 500
+        raise ValidationError(f"unreadable or corrupt PDF: {str(exc)[:120]}") from exc
+    if n_pages > MAX_PAGES:
         raise ValidationError(f"PDF exceeds {MAX_PAGES} pages")
     pages = []
     for i, page in enumerate(reader.pages, start=1):
@@ -76,7 +86,8 @@ class IngestionPipeline:
         if len(content) > MAX_DOC_BYTES:
             raise ValidationError("document exceeds 30MB limit")
 
-        suffix = (filename.lower().rsplit(".", 1) + [""])[-1]
+        root, dot, suffix = filename.lower().rpartition(".")
+        suffix = suffix if dot else ""
         content_hash = hashlib.sha256(content).hexdigest()
 
         if suffix == "pdf" or (doc_type == "pdf"):
@@ -102,9 +113,7 @@ class IngestionPipeline:
             image_path = None
             try:
                 image = render_page_image(p["text"], p["page"], title)
-                image_path = f"data/pages/{doc_id}_{p['page']}.png"
-                from pathlib import Path
-
+                image_path = str(_DATA_DIR / "pages" / f"{doc_id}_{p['page']}.png")
                 Path(image_path).parent.mkdir(parents=True, exist_ok=True)
                 Path(image_path).write_bytes(image)
             except Exception as exc:  # noqa: BLE001 — rendering is best-effort in mock mode

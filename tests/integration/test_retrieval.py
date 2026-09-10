@@ -108,3 +108,46 @@ def test_margin_signal(stack):
     _ingest_text(stack, "ten_a", "Unrelated: garden plants need water and sunlight daily.")
     r = stack["engine"].retrieve(query="Acme revenue 2023", tenant_id="ten_a", k=2)
     assert r.confidence >= r.margin >= 0
+
+
+def test_pdf_suffix_detection_regression(stack):
+    """A .pdf filename must route to PDF extraction (doc_type 'pdf'), not text.
+    Regression: the old suffix expression evaluated to '' for every filename,
+    silently ingesting PDFs as garbled text pages."""
+    import io
+    from pypdf import PdfWriter
+
+    writer = PdfWriter()
+    writer.add_blank_page(width=612, height=792)
+    buf = io.BytesIO()
+    writer.write(buf)
+    info = stack["ingest"].ingest(tenant_id="ten_a", filename="report.pdf",
+                                  content=buf.getvalue())
+    assert info["doc_type"] == "pdf"
+
+
+def test_image_suffix_detection(stack):
+    from PIL import Image
+
+    import io as _io
+    buf = _io.BytesIO()
+    Image.new("RGB", (32, 32), "white").save(buf, format="PNG")
+    info = stack["ingest"].ingest(tenant_id="ten_a", filename="scan.png",
+                                  content=buf.getvalue())
+    assert info["doc_type"] == "image"
+
+
+def test_extensionless_filename_still_ingests(stack):
+    info = stack["ingest"].ingest(tenant_id="ten_a", filename="README",
+                                  content=b"plain notes without extension")
+    assert info["doc_type"] == "text"
+
+
+def test_corrupt_pdf_fails_as_validation_error(stack):
+    """A corrupt PDF must surface a clean ValidationError (422 in the API),
+    not an unhandled pypdf stack trace."""
+    from ara.core.errors import ValidationError
+
+    with pytest.raises(ValidationError, match="unreadable or corrupt PDF"):
+        stack["ingest"].ingest(tenant_id="ten_a", filename="broken.pdf",
+                               content=b"this is definitely not a pdf")

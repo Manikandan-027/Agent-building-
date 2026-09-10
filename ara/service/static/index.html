@@ -3,225 +3,576 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ARA — Autonomous Research Agent</title>
+<title>ARA Console — Autonomous Research & Decision Agent</title>
 <style>
-  :root { --bg:#0e1117; --panel:#161b22; --border:#2d333b; --text:#e6edf3; --muted:#8b949e;
-          --accent:#539bf5; --ok:#57ab5a; --warn:#c69026; --err:#e5534b; --user:#1f6feb33; }
-  * { box-sizing:border-box; margin:0; }
-  body { background:var(--bg); color:var(--text); font:14px/1.5 -apple-system,"Segoe UI",Roboto,sans-serif; height:100vh; display:flex; }
-  aside { width:340px; min-width:280px; border-right:1px solid var(--border); background:var(--panel);
-          display:flex; flex-direction:column; overflow:hidden; }
-  main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
-  header { padding:12px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
-  header h1 { font-size:15px; font-weight:600; }
-  .badge { font-size:11px; padding:2px 8px; border-radius:10px; background:var(--border); color:var(--muted); }
-  .badge.ok { background:#2ea04333; color:var(--ok); }
-  .badge.warn { background:#c6902633; color:var(--warn); }
-  .scroll { flex:1; overflow-y:auto; padding:12px; }
-  section { margin-bottom:18px; }
-  section h2 { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-bottom:8px; }
-  button { background:var(--border); color:var(--text); border:1px solid transparent; border-radius:6px;
-           padding:6px 12px; cursor:pointer; font-size:13px; }
-  button:hover { filter:brightness(1.2); }
-  button.primary { background:var(--accent); color:#fff; }
-  button.approve { background:#2ea043; color:#fff; }
-  button.reject { background:var(--err); color:#fff; }
-  input,textarea { background:var(--bg); border:1px solid var(--border); color:var(--text);
-                   border-radius:6px; padding:8px; font:inherit; width:100%; }
-  textarea { resize:vertical; min-height:64px; }
-  .card { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:10px; margin-bottom:8px; }
-  .msg { max-width:78%; padding:10px 14px; border-radius:12px; margin-bottom:10px; white-space:pre-wrap; }
-  .msg.user { background:var(--user); margin-left:auto; }
-  .msg.assistant { background:var(--panel); border:1px solid var(--border); }
-  .msg .meta { margin-top:8px; font-size:12px; color:var(--muted); }
-  .cite { color:var(--accent); cursor:pointer; text-decoration:underline dotted; }
-  #composer { border-top:1px solid var(--border); padding:12px; display:flex; gap:8px; align-items:flex-end; }
-  #composer textarea { flex:1; }
-  .verdict { padding:8px 10px; border-radius:8px; font-size:12px; margin-top:8px; border:1px solid var(--border); }
-  .verdict.ok { border-color:#2ea04366; } .verdict.refused { border-color:var(--err); color:var(--err); }
-  .verdict.conflict { border-color:var(--warn); color:var(--warn); }
-  .approval { border:1px solid var(--warn); }
-  .approval .risk { color:var(--warn); font-weight:600; }
-  table { width:100%; border-collapse:collapse; font-size:12px; }
-  td,th { text-align:left; padding:4px 6px; border-bottom:1px solid var(--border); }
-  .kv { color:var(--muted); font-size:12px; }
-  .spinner { display:inline-block; width:14px; height:14px; border:2px solid var(--muted);
-             border-top-color:var(--accent); border-radius:50%; animation:spin 1s linear infinite; }
-  @keyframes spin { to { transform:rotate(360deg); } }
+  :root{
+    --bg:#0b0e14; --bg2:#0f131c; --panel:#141a24; --panel2:#1a2230; --border:#232c3d;
+    --text:#e6edf3; --muted:#8b98ad; --accent:#4f8ff7; --accent2:#7aa5f8;
+    --ok:#3fb950; --warn:#d29922; --err:#f85149; --user:#1f6feb26; --chip:#1c2534;
+  }
+  *{box-sizing:border-box;margin:0}
+  html,body{height:100%}
+  body{background:var(--bg);color:var(--text);font:14px/1.55 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;display:flex;flex-direction:column;overflow:hidden}
+  ::-webkit-scrollbar{width:9px;height:9px} ::-webkit-scrollbar-thumb{background:#2a3447;border-radius:6px}
+  ::-webkit-scrollbar-track{background:transparent}
+  a{color:var(--accent2)}
+  code,pre{font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  button{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px 14px;cursor:pointer;font-size:13px;transition:filter .12s,background .12s}
+  button:hover{filter:brightness(1.18)} button:disabled{opacity:.5;cursor:not-allowed}
+  button.primary{background:var(--accent);border-color:transparent;color:#fff;font-weight:600}
+  button.ok{background:#238636;border-color:transparent;color:#fff}
+  button.danger{background:#b62324;border-color:transparent;color:#fff}
+  button.ghost{background:transparent}
+  input,textarea,select{background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 10px;font:inherit;width:100%}
+  input:focus,textarea:focus{outline:none;border-color:var(--accent)}
+  /* ---------- top bar ---------- */
+  #topbar{display:flex;align-items:center;gap:14px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--border);flex:none}
+  #topbar .logo{display:flex;align-items:center;gap:9px;font-weight:700;font-size:15px;letter-spacing:.02em}
+  #topbar .logo svg{flex:none}
+  .chip{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;padding:3px 10px;border-radius:999px;background:var(--chip);color:var(--muted);white-space:nowrap}
+  .chip .dot{width:7px;height:7px;border-radius:50%;background:var(--muted)}
+  .chip.ok{color:var(--ok)} .chip.ok .dot{background:var(--ok)}
+  .chip.warn{color:var(--warn)} .chip.warn .dot{background:var(--warn)}
+  .chip.err{color:var(--err)} .chip.err .dot{background:var(--err)}
+  #keybox{margin-left:auto;display:flex;align-items:center;gap:7px}
+  #keybox input{width:230px;padding:6px 10px;font-size:12.5px}
+  /* ---------- layout ---------- */
+  #shell{flex:1;display:flex;min-height:0}
+  nav{width:190px;flex:none;background:var(--panel);border-right:1px solid var(--border);padding:10px 8px;display:flex;flex-direction:column;gap:2px}
+  nav button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:transparent;border:none;padding:9px 12px;border-radius:8px;color:var(--muted);font-size:13.5px}
+  nav button:hover{background:var(--panel2);color:var(--text)}
+  nav button.active{background:var(--panel2);color:var(--text);box-shadow:inset 2px 0 0 var(--accent)}
+  nav .spacer{flex:1}
+  nav .foot{font-size:10.5px;color:var(--muted);padding:8px 12px;line-height:1.5}
+  main{flex:1;min-width:0;display:flex;flex-direction:column}
+  .tabhead{display:flex;align-items:center;gap:10px;padding:12px 20px;border-bottom:1px solid var(--border);flex:none}
+  .tabhead h1{font-size:15px;font-weight:650}
+  .tabhead .sub{color:var(--muted);font-size:12px}
+  .tabhead .right{margin-left:auto;display:flex;gap:8px;align-items:center}
+  .pane{flex:1;overflow-y:auto;padding:18px 20px}
+  .pane.nopad{padding:0;display:flex;flex-direction:column}
+  .hidden{display:none!important}
+  /* ---------- chat ---------- */
+  #chatScroll{flex:1;overflow-y:auto;padding:20px;scroll-behavior:smooth}
+  #chatInner{max-width:860px;margin:0 auto}
+  .msg{max-width:82%;padding:10px 14px;border-radius:14px;margin-bottom:12px;white-space:pre-wrap;word-wrap:break-word}
+  .msg.user{background:var(--user);border:1px solid #1f6feb55;margin-left:auto;border-bottom-right-radius:4px}
+  .msg.assistant{background:var(--panel);border:1px solid var(--border);border-bottom-left-radius:4px}
+  .msg .meta{margin-top:8px;font-size:11.5px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .cite{color:var(--accent2);cursor:pointer;text-decoration:underline dotted;background:none;border:none;padding:0;font:inherit}
+  .verdict{display:flex;gap:8px;align-items:flex-start;padding:8px 11px;border-radius:9px;font-size:12.5px;margin-top:9px;border:1px solid var(--border);background:var(--bg2)}
+  .verdict.ok{border-color:#23863666} .verdict.refused{border-color:#f8514966;color:#ffb0ab}
+  .verdict.conflict{border-color:#d2992266;color:#e8c37c} .verdict.approval{border-color:#d2992266}
+  .verdict .big{font-size:14px}
+  .claims{margin-top:8px;border-top:1px dashed var(--border);padding-top:7px;font-size:12px;color:var(--muted)}
+  .claims li{margin-left:16px;margin-bottom:2px}
+  #composer{border-top:1px solid var(--border);padding:12px 20px;display:flex;gap:10px;align-items:flex-end;background:var(--panel);flex:none}
+  #composer .wrap{flex:1;max-width:860px;margin:0 auto;display:flex;gap:10px;align-items:flex-end}
+  #composer textarea{resize:none;min-height:44px;max-height:160px}
+  .spin{display:inline-block;width:13px;height:13px;border:2px solid var(--muted);border-top-color:var(--accent);border-radius:50%;animation:sp 1s linear infinite;vertical-align:-2px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .hello{max-width:860px;margin:0 auto 14px;border:1px dashed var(--border);border-radius:12px;padding:14px 16px;color:var(--muted);font-size:12.5px}
+  .hello b{color:var(--text)}
+  .hello .ex{display:inline-block;margin:4px 6px 0 0;padding:4px 10px;border:1px solid var(--border);border-radius:999px;background:var(--panel);cursor:pointer;font-size:12px;color:var(--accent2)}
+  /* ---------- cards/tables ---------- */
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px} @media(max-width:960px){.grid2{grid-template-columns:1fr}}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th{color:var(--muted);text-transform:uppercase;font-size:10.5px;letter-spacing:.06em;text-align:left;padding:6px 8px;border-bottom:1px solid var(--border)}
+  td{padding:7px 8px;border-bottom:1px solid var(--border);vertical-align:top}
+  tr:hover td{background:#ffffff06}
+  .kv{color:var(--muted);font-size:12px} .kv b{color:var(--text)}
+  .pill{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.04em;padding:2px 9px;border-radius:999px;background:var(--chip);color:var(--muted)}
+  .pill.ok{background:#23863633;color:var(--ok)} .pill.err{background:#b6232433;color:#ff8f88}
+  .pill.warn{background:#d2992233;color:#e8c37c} .pill.run{background:#1f6feb33;color:var(--accent2)}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .sec-title{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:18px 0 8px}
+  /* ---------- dropzone ---------- */
+  #drop{border:2px dashed var(--border);border-radius:12px;padding:26px;text-align:center;color:var(--muted);cursor:pointer;transition:border-color .15s,background .15s}
+  #drop.over{border-color:var(--accent);background:#4f8ff710}
+  /* ---------- modal & toasts ---------- */
+  #modalBack{position:fixed;inset:0;background:#000000a8;display:flex;align-items:center;justify-content:center;z-index:50;padding:24px}
+  #modal{background:var(--panel);border:1px solid var(--border);border-radius:14px;max-width:760px;width:100%;max-height:82vh;display:flex;flex-direction:column;overflow:hidden}
+  #modalHead{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);font-weight:600}
+  #modalBody{padding:14px 16px;overflow-y:auto;white-space:pre-wrap;font-size:13px}
+  #modalBody table{font-size:12px}
+  #toasts{position:fixed;right:16px;bottom:16px;display:flex;flex-direction:column;gap:8px;z-index:60;max-width:380px}
+  .toast{background:var(--panel2);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:10px;padding:10px 14px;font-size:13px;box-shadow:0 6px 24px #00000066;animation:tin .18s ease-out}
+  .toast.err{border-left-color:var(--err)} .toast.ok{border-left-color:var(--ok)} .toast.warn{border-left-color:var(--warn)}
+  @keyframes tin{from{transform:translateY(8px);opacity:0}}
+  @media(max-width:760px){
+    nav{width:56px} nav button span.lbl,nav .foot{display:none}
+    #keybox input{width:150px} .msg{max-width:95%}
+  }
 </style>
 </head>
 <body>
-<aside>
-  <header><h1>ARA</h1><span id="health" class="badge">connecting…</span></header>
-  <div class="scroll">
-    <section>
-      <h2>Documents</h2>
-      <input type="file" id="docFile">
-      <button id="uploadBtn" style="margin-top:6px;width:100%">Upload &amp; ingest</button>
-      <div id="docList" style="margin-top:8px"></div>
-    </section>
-    <section>
-      <h2>Approval requests</h2>
-      <div id="approvals"><div class="kv">none pending</div></div>
-    </section>
-    <section>
-      <h2>Tasks</h2>
-      <div id="taskList"><div class="kv">none yet</div></div>
-    </section>
-    <section>
-      <h2>Execution trace <span class="kv">(admin)</span></h2>
-      <div id="trace"><div class="kv">select a task</div></div>
-    </section>
+
+<div id="topbar">
+  <div class="logo">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#4f8ff7" stroke-width="2"/><path d="M12 6v6l4 2" stroke="#7aa5f8" stroke-width="2" stroke-linecap="round"/></svg>
+    ARA Console
   </div>
-</aside>
-<main>
-  <header><h1>Research chat</h1><span id="answerState" class="badge"></span></header>
-  <div class="scroll" id="chat"></div>
-  <div id="composer">
-    <textarea id="input" placeholder="Ask about your documents, request calculations, or launch a multi-step task… (Ctrl+Enter to send)"></textarea>
-    <button class="primary" id="sendBtn">Send</button>
+  <span id="health" class="chip"><span class="dot"></span>connecting…</span>
+  <div id="keybox">
+    <span class="kv">API key</span>
+    <input id="keyInput" type="password" placeholder="default: ara-dev-key-change-me" autocomplete="off">
+    <button id="keySave">Save</button>
+    <span id="keyState" class="chip"><span class="dot"></span>not verified</span>
   </div>
-</main>
+</div>
+
+<div id="shell">
+  <nav>
+    <button data-tab="chat" class="active"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a8 8 0 0 1-8 8H4l2-3a8 8 0 1 1 15-5z"/></svg><span class="lbl">Chat</span></button>
+    <button data-tab="documents"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg><span class="lbl">Documents</span></button>
+    <button data-tab="tasks"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg><span class="lbl">Tasks</span></button>
+    <button data-tab="memory"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0-6 6c0 2.5 1.5 4 2.5 5.5.6.9.5 1.5.5 2.5h6c0-1-.1-1.6.5-2.5C16.5 13 18 11.5 18 9a6 6 0 0 0-6-6z"/><path d="M9 21h6"/></svg><span class="lbl">Memory</span></button>
+    <button data-tab="system"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span class="lbl">System</span></button>
+    <div class="spacer"></div>
+    <div class="foot">ARA — no-hallucination agent:<br>every claim needs evidence,<br>otherwise it refuses.</div>
+  </nav>
+
+  <main>
+    <!-- ================= CHAT ================= -->
+    <section id="tab-chat" class="pane nopad">
+      <div class="tabhead"><h1>Research chat</h1><span class="sub">grounded answers · verified calculations · explicit refusals</span>
+        <div class="right"><button class="ghost" id="clearChat">Clear</button></div>
+      </div>
+      <div id="chatScroll"><div id="chatInner">
+        <div class="hello" id="hello">
+          <b>Ask anything about the documents you ingested</b> — the agent plans, retrieves, runs verified tools (calculator, clock), cites evidence for every claim, and <b>refuses instead of guessing</b>. Try:
+          <div>
+            <span class="ex">What was Acme's FY2023 revenue?</span>
+            <span class="ex">How much did headcount grow?</span>
+            <span class="ex">What is 1287 * 46?</span>
+            <span class="ex">Acme revenue grew from 44.8M to 50.2M — calculate the growth rate</span>
+          </div>
+        </div>
+        <div id="chat"></div>
+      </div></div>
+      <div id="composer"><div class="wrap">
+        <textarea id="input" rows="1" placeholder="Ask about your documents, request a calculation, or launch a multi-step task…"></textarea>
+        <button class="primary" id="sendBtn">Send</button>
+      </div></div>
+    </section>
+
+    <!-- ================= DOCUMENTS ================= -->
+    <section id="tab-documents" class="pane hidden">
+      <div class="tabhead"><h1>Documents</h1><span class="sub">ingest evidence the agent may cite — txt, md, csv, json, pdf, png/jpg</span>
+        <div class="right"><button id="docsRefresh">Refresh</button></div>
+      </div>
+      <div class="pane">
+        <div id="drop">
+          <div style="font-size:15px;margin-bottom:4px">Drop files here or <b style="color:var(--accent2)">browse</b></div>
+          <div class="kv">PDF → per-page extraction (300 pages max, 30&nbsp;MB) · images become visual pages · everything is embedded for visual retrieval</div>
+        </div>
+        <input type="file" id="docFile" multiple class="hidden">
+        <div id="uploadState" class="kv" style="margin-top:8px"></div>
+        <div class="sec-title">Ingested documents</div>
+        <div class="card" style="padding:0"><table id="docsTable">
+          <thead><tr><th>Title</th><th>Type</th><th>Pages</th><th>Ingested</th><th style="width:150px"></th></tr></thead>
+          <tbody id="docsBody"><tr><td colspan="5" class="kv">loading…</td></tr></tbody>
+        </table></div>
+      </div>
+    </section>
+
+    <!-- ================= TASKS ================= -->
+    <section id="tab-tasks" class="pane hidden">
+      <div class="tabhead"><h1>Tasks</h1><span class="sub">every run: plan, tools, verification, trace</span>
+        <div class="right"><button id="tasksRefresh">Refresh</button><span id="autoTask" class="chip"><span class="dot"></span>auto-refresh on</span></div>
+      </div>
+      <div class="pane"><div class="grid2">
+        <div><div class="sec-title" style="margin-top:0">Recent tasks</div><div id="taskList"></div></div>
+        <div><div class="sec-title" style="margin-top:0">Task detail</div><div id="taskDetail" class="card kv">select a task on the left</div></div>
+      </div></div>
+    </section>
+
+    <!-- ================= MEMORY ================= -->
+    <section id="tab-memory" class="pane hidden">
+      <div class="tabhead"><h1>Memory</h1><span class="sub">semantic facts & episodic events the agent remembers about you</span>
+        <div class="right">
+          <select id="memKind" style="width:150px"><option value="semantic">semantic</option><option value="episodic">episodic</option></select>
+          <button id="memRefresh">Refresh</button>
+        </div>
+      </div>
+      <div class="pane" id="memList"></div>
+    </section>
+
+    <!-- ================= SYSTEM ================= -->
+    <section id="tab-system" class="pane hidden">
+      <div class="tabhead"><h1>System</h1><span class="sub">health, API surface, quickstart</span></div>
+      <div class="pane">
+        <div class="grid2">
+          <div>
+            <div class="sec-title" style="margin-top:0">Health</div>
+            <div class="card"><pre id="healthJson" style="white-space:pre-wrap">…</pre></div>
+            <div class="sec-title">How verification works</div>
+            <div class="card kv">
+              <b style="color:var(--text)">No evidence → no claim.</b> The answerer must cite admissible evidence
+              for every factual claim; the verifier re-checks each claim deterministically (numbers must appear in
+              cited pages, match a verified calculator result, or be a bounded derivation). Unsupported answers are
+              <b style="color:var(--text)">refused</b> with a reason — that is the product working, not an error.
+              HIGH-risk tool calls pause and wait for your approval on the Tasks tab.
+            </div>
+          </div>
+          <div>
+            <div class="sec-title" style="margin-top:0">Quickstart (curl)</div>
+            <div class="card"><pre id="curlBox" style="white-space:pre-wrap"></pre></div>
+            <div class="sec-title">API surface</div>
+            <div class="card" style="padding:0"><table>
+              <thead><tr><th>Method</th><th>Path</th><th>Purpose</th></tr></thead>
+              <tbody>
+                <tr><td>POST</td><td>/chat</td><td>one-shot ask (sync)</td></tr>
+                <tr><td>POST</td><td>/documents</td><td>ingest a file</td></tr>
+                <tr><td>GET</td><td>/documents</td><td>list ingested docs</td></tr>
+                <tr><td>POST</td><td>/tasks</td><td>queue async task</td></tr>
+                <tr><td>GET</td><td>/tasks/{id}</td><td>state + verification</td></tr>
+                <tr><td>GET</td><td>/tasks/{id}/evidence</td><td>admissible evidence</td></tr>
+                <tr><td>GET</td><td>/tasks/{id}/trace</td><td>observability spans</td></tr>
+                <tr><td>POST</td><td>/tasks/{id}/approve</td><td>durable HIGH-risk approval</td></tr>
+                <tr><td>POST</td><td>/tasks/{id}/cancel</td><td>cancel a queued/running task</td></tr>
+                <tr><td>GET</td><td>/memory?kind=semantic</td><td>inspect memory</td></tr>
+                <tr><td>GET</td><td>/health · /ready</td><td>liveness / readiness</td></tr>
+              </tbody>
+            </table></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="modalBack" class="hidden"><div id="modal">
+  <div id="modalHead"><span id="modalTitle"></span><button class="ghost" id="modalClose" style="margin-left:auto">✕</button></div>
+  <div id="modalBody"></div>
+</div></div>
+<div id="toasts"></div>
+
 <script>
-const API = "";
-const KEY = localStorage.getItem("ara_key") || prompt("API key (dev default: ara-dev-key-change-me):") || "";
-localStorage.setItem("ara_key", KEY);
-const H = { "Content-Type": "application/json", "X-API-Key": KEY };
-let currentTaskId = null;
-
+"use strict";
+/* ============================== plumbing ============================== */
 const $ = id => document.getElementById(id);
-function esc(s){ const d=document.createElement("div"); d.textContent = s ?? ""; return d.innerHTML; }
+const esc = s => { const d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; };
 
-async function api(path, opts={}) {
-  const r = await fetch(API + path, { headers: H, ...opts });
-  const body = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(body.message || r.statusText);
+let KEY = localStorage.getItem("ara_key") || "ara-dev-key-change-me";
+$("keyInput").value = KEY;
+
+function toast(msg, kind = "", ms = 4200) {
+  const t = document.createElement("div");
+  t.className = "toast " + kind;
+  t.innerHTML = msg;
+  $("toasts").appendChild(t);
+  setTimeout(() => t.remove(), ms);
+}
+
+async function api(path, opts = {}) {
+  const headers = Object.assign({ "X-API-Key": KEY }, opts.headers || {});
+  if (opts.json) { headers["Content-Type"] = "application/json"; opts = Object.assign({}, opts, { body: JSON.stringify(opts.json), headers }); }
+  const r = await fetch(path, Object.assign({ headers }, opts));
+  let body = {};
+  try { body = await r.json(); } catch { /* empty body */ }
+  if (!r.ok) {
+    const msg = body.message || (typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail || {})) || r.statusText || ("HTTP " + r.status);
+    if (r.status === 401) { setKeyState(false, "rejected by server"); toast("⚠ " + esc(msg) + " — check the API key (top right). Default: <code>ara-dev-key-change-me</code>", "err", 6500); }
+    throw new Error(msg);
+  }
+  setKeyState(true, "accepted");
   return body;
 }
-
-async function checkHealth() {
-  try { const h = await api("/health");
-    $("health").textContent = `llm:${h.llm_provider} · colpali:${h.colpali_mode}`;
-    $("health").className = "badge ok";
-  } catch { $("health").textContent = "offline"; $("health").className = "badge warn"; }
+function setKeyState(ok, label) {
+  $("keyState").className = "chip " + (ok ? "ok" : "err");
+  $("keyState").innerHTML = '<span class="dot"></span>' + esc(label);
 }
+$("keySave").onclick = () => {
+  KEY = $("keyInput").value.trim() || "ara-dev-key-change-me";
+  localStorage.setItem("ara_key", KEY);
+  $("keyInput").value = KEY;
+  toast("API key saved", "ok");
+  bootChecks();
+};
 
-function addMsg(role, text, extra="") {
+/* ============================== tabs ============================== */
+document.querySelectorAll("nav button[data-tab]").forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll("nav button[data-tab]").forEach(x => x.classList.toggle("active", x === b));
+    ["chat", "documents", "tasks", "memory", "system"].forEach(t => $("tab-" + t).classList.toggle("hidden", t !== b.dataset.tab));
+    if (b.dataset.tab === "documents") refreshDocs();
+    if (b.dataset.tab === "tasks") refreshTasks();
+    if (b.dataset.tab === "memory") refreshMemory();
+    if (b.dataset.tab === "system") refreshHealth();
+  };
+});
+
+/* ============================== modal ============================== */
+function modal(title, html) { $("modalTitle").textContent = title; $("modalBody").innerHTML = html; $("modalBack").classList.remove("hidden"); }
+$("modalClose").onclick = () => $("modalBack").classList.add("hidden");
+$("modalBack").onclick = e => { if (e.target === $("modalBack")) $("modalBack").classList.add("hidden"); };
+
+/* ============================== health ============================== */
+async function refreshHealth() {
+  try {
+    const h = await api("/health");
+    $("healthJson").textContent = JSON.stringify(h, null, 2);
+    setHealth(h);
+  } catch (e) { $("healthJson").textContent = "unreachable: " + e.message; }
+}
+function setHealth(h) {
+  const okProvider = h.llm_provider === "openai_compatible";
+  $("health").className = "chip " + (okProvider ? "ok" : "warn");
+  $("health").innerHTML = '<span class="dot"></span>' +
+    (h.llm_provider === "openai_compatible"
+      ? `LLM live · ${esc((h.planner_model || h.model || "").split("/").pop())}`
+      : `scripted mode (no LLM key)`);
+}
+async function bootChecks() {
+  try { setHealth(await api("/health")); } catch { $("health").className = "chip err"; $("health").innerHTML = '<span class="dot"></span>offline / bad key'; }
+}
+$("curlBox").textContent =
+`curl -X POST http://localhost:8000/chat \\
+  -H "X-API-Key: ${KEY}" \\
+  -H "Content-Type: application/json" \\
+  -d '{"message":"What is 1287 * 46?"}'`;
+
+/* ============================== chat ============================== */
+function linkCitations(html) {
+  return html.replace(/\[(ev_[a-z0-9_]+|call_[a-z0-9_]+)\]/g, '<button class="cite" data-ev="$1">[$1]</button>');
+}
+function addMsg(role, html, cls = "") {
   const div = document.createElement("div");
-  div.className = "msg " + role;
-  div.innerHTML = esc(text).replace(/\[(ev_[a-z0-9_]+)\]/g, '<span class="cite">[$1]</span>') + extra;
+  div.className = "msg " + role + (cls ? " " + cls : "");
+  div.innerHTML = html;
   $("chat").appendChild(div);
-  $("chat").scrollTop = $("chat").scrollHeight;
+  $("chatScroll").scrollTop = $("chatScroll").scrollHeight;
   return div;
 }
+document.addEventListener("click", e => {
+  const b = e.target.closest(".cite");
+  if (b) showEvidenceModal(b.dataset.ev);
+});
 
 async function send() {
   const text = $("input").value.trim();
   if (!text) return;
-  $("input").value = "";
-  addMsg("user", text);
-  const busy = addMsg("assistant", "", "");
-  busy.innerHTML = '<span class="spinner"></span> planning & retrieving…';
+  $("hello").classList.add("hidden");
+  $("input").value = ""; $("input").style.height = "auto";
+  addMsg("user", esc(text));
+  const busy = addMsg("assistant", '<span class="spin"></span> plan → retrieve → verify…');
   try {
-    const body = await api("/chat", { method:"POST", body: JSON.stringify({ message: text }) });
-    if (body.status === "WAITING_FOR_APPROVAL") {
-      busy.className = "msg assistant approval";
-      const a = body.proposed_action || {};
-      busy.innerHTML = `⏸ <b>Approval required</b> — tool <code>${esc(a.tool||"?")}</code>
-        <span class="risk">[${esc(a.risk||"")} risk]</span><br>
-        <span class="kv">${esc(a.reason||"")}</span><br>
-        <button class="approve" onclick="decide('${body.task_id}','${a.approval_id}','APPROVED')">Approve</button>
-        <button class="reject" onclick="decide('${body.task_id}','${a.approval_id}','REJECTED')">Reject</button>`;
-      refreshTasks();
-    } else {
-      const v = body.verification || {};
-      const cls = v.refused ? "refused" : (v.conflicts?.length ? "conflict" : "ok");
-      let verdict = v.refused
-        ? `🛡 Refused: ${esc(v.refusal_reason||"evidence insufficient")}`
-        : `✅ ${v.claims?.filter(c=>c.supported).length||0} verified claim(s), ${(body.citations||[]).length} citation(s)`;
-      if (v.conflicts?.length) verdict += ` · ⚠ ${v.conflicts.length} source conflict(s)`;
-      busy.innerHTML = esc(body.answer||"")
-        .replace(/\[(ev_[a-z0-9_]+)\]/g, '<span class="cite">[$1]</span>')
-        + `<div class="verdict ${cls}">${verdict}</div>`
-        + `<div class="meta">task <a href="#" onclick="showTrace('${body.task_id}');return false;">${esc(body.task_id)}</a></div>`;
-      currentTaskId = body.task_id;
-    }
-  } catch (e) { busy.innerHTML = `⚠ ${esc(e.message)}`; }
-  refreshTasks(); refreshApprovals();
+    const body = await api("/chat", { method: "POST", json: { message: text } });
+    renderAnswer(busy, body);
+  } catch (e) {
+    busy.innerHTML = "⚠ " + esc(e.message) + '<div class="meta"><button class="ghost" onclick="retry()">Retry</button></div>';
+    busy.dataset.retry = text;
+  }
+  refreshTasks(true);
 }
-
-async function decide(taskId, approvalId, decision) {
+function retry() {
+  const el = [...document.querySelectorAll(".msg.assistant")].pop();
+  const t = el && el.dataset.retry;
+  if (t) { el.remove(); $("input").value = t; send(); }
+}
+function renderAnswer(busy, body) {
+  if (body.status === "WAITING_FOR_APPROVAL") {
+    const a = body.proposed_action || {};
+    busy.innerHTML = `⏸ <b>Approval required</b> — tool <code>${esc(a.tool || "?")}</code> <span class="pill warn">${esc((a.risk || "").toUpperCase())} RISK</span>
+      <div class="kv" style="margin-top:4px">${esc(a.reason || "")}</div>
+      <div class="row" style="margin-top:9px">
+        <button class="ok" onclick="decide('${body.task_id}','APPROVED')">Approve & run</button>
+        <button class="danger" onclick="decide('${body.task_id}','REJECTED')">Reject</button>
+      </div>`;
+    return;
+  }
+  const v = body.verification || {};
+  const nOk = (v.claims || []).filter(c => c.supported).length, nAll = (v.claims || []).length;
+  const nCit = (body.citations || []).length;
+  const conflicts = v.conflicts || [];
+  let verdictHtml;
+  if (v.refused) {
+    verdictHtml = `<div class="verdict refused"><span class="big">🛡</span><div><b>Refused — no hallucination.</b> ${esc(v.refusal_reason || "the draft is not supported by admissible evidence")}</div></div>`;
+  } else {
+    verdictHtml = `<div class="verdict ok${conflicts.length ? " conflict" : ""}"><span class="big">✅</span><div>
+      ${nOk}/${nAll || nOk} claim(s) verified · ${nCit} citation(s)
+      ${conflicts.length ? `· <b>⚠ ${conflicts.length} source conflict(s) detected & resolved</b>` : ""}
+      ${v.derived_numbers && v.derived_numbers.length ? `· derived: ${esc(v.derived_numbers.join(", "))}` : ""}</div></div>`;
+  }
+  const claimsHtml = (v.claims && v.claims.length && !v.refused) ? `<div class="claims"><b>Claims checked:</b><ul>${
+    v.claims.map(c => `<li>${esc(c.text).slice(0, 140)} — ${c.supported ? "✅" : "❌ " + esc((c.problems || []).join("; "))}</li>`).join("")}</ul></div>` : "";
+  busy.innerHTML = linkCitations(esc(body.answer || "(empty answer)"))
+    + verdictHtml + claimsHtml
+    + `<div class="meta">task <a href="#" onclick="openTask('${body.task_id}');return false;">${esc(body.task_id)}</a> · ${esc(body.status || "")}</div>`;
+  currentTaskId = body.task_id;
+}
+async function decide(taskId, decision) {
   try {
-    const body = await api(`/tasks/${taskId}/approve`, { method:"POST", body: JSON.stringify({ decision }) });
+    const r = await api(`/tasks/${taskId}/approve`, { method: "POST", json: { decision } });
     addMsg("assistant", decision === "APPROVED"
-      ? `Approved. Result: ${body.answer || body.status}`
-      : "Rejected. The action was not executed.");
-  } catch (e) { addMsg("assistant", `⚠ ${e.message}`); }
-  refreshTasks(); refreshApprovals();
+      ? `✅ Approved — resumed. Result: ${esc(r.answer || r.status || "(see Tasks tab)")}`
+      : "🚫 Rejected — the action was not executed.");
+  } catch (e) { toast("⚠ " + esc(e.message), "err"); }
+  refreshTasks(true);
 }
+$("sendBtn").onclick = send;
+$("clearChat").onclick = () => { $("chat").innerHTML = ""; $("hello").classList.remove("hidden"); };
+$("input").addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+});
+$("input").addEventListener("input", function () { this.style.height = "auto"; this.style.height = Math.min(this.scrollHeight, 160) + "px"; });
+document.querySelectorAll(".ex").forEach(x => x.onclick = () => { $("input").value = x.textContent; send(); });
 
-async function refreshTasks() {
-  try {
-    const { tasks } = await api("/tasks");
-    $("taskList").innerHTML = tasks.length ? tasks.slice(0,12).map(t =>
-      `<div class="card"><b>${esc(t.status)}</b> <span class="kv">${esc(t.id.slice(0,14))}…</span>
-       <div class="kv">${esc(t.created_at?.slice(0,19))}</div>
-       <a href="#" onclick="showTrace('${t.id}');return false;">trace</a></div>`).join("")
-      : '<div class="kv">none yet</div>';
-  } catch {}
-}
+/* ============================== documents ============================== */
+const drop = $("drop");
+drop.onclick = () => $("docFile").click();
+drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("over"); });
+drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+drop.addEventListener("drop", e => { e.preventDefault(); drop.classList.remove("over"); uploadFiles(e.dataTransfer.files); });
+$("docFile").onchange = e => uploadFiles(e.target.files);
 
-async function refreshApprovals() {
-  try {
-    const { tasks } = await api("/tasks");
-    const pending = tasks.filter(t => t.status === "WAITING_FOR_APPROVAL");
-    if (!pending.length) { $("approvals").innerHTML = '<div class="kv">none pending</div>'; return; }
-    let html = "";
-    for (const t of pending) {
-      const d = await api(`/tasks/${t.id}`);
-      html += `<div class="card approval"><b>${esc(d.goal?.slice(0,40)||t.id.slice(0,12))}</b>
-        <div class="kv">waiting for your decision</div></div>`;
+async function uploadFiles(files) {
+  const list = [...files]; if (!list.length) return;
+  for (const f of list) {
+    $("uploadState").innerHTML = '<span class="spin"></span> ingesting ' + esc(f.name) + "…";
+    const fd = new FormData(); fd.append("file", f, f.name);
+    try {
+      const r = await fetch("/documents", { method: "POST", headers: { "X-API-Key": KEY }, body: fd });
+      const b = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(b.message || b.detail || ("HTTP " + r.status));
+      $("uploadState").innerHTML = "";
+      toast(`📄 <b>${esc(f.name)}</b> ingested — ${b.pages} page(s), id <code>${esc(b.document_id)}</code>`, "ok");
+    } catch (e) {
+      $("uploadState").innerHTML = "";
+      toast("⚠ Upload failed for <b>" + esc(f.name) + "</b>: " + esc(e.message), "err", 7000);
     }
-    $("approvals").innerHTML = html;
-  } catch {}
+  }
+  $("docFile").value = "";
+  refreshDocs();
 }
-
-async function showTrace(taskId) {
-  currentTaskId = taskId;
-  try {
-    const tr = await api(`/tasks/${taskId}/trace`);
-    const rows = (tr.spans||[]).map(s => `<tr><td>${esc(s.name)}</td><td>${esc(s.status)}</td>
-      <td class="kv">${esc((s.attributes&&JSON.stringify(s.attributes).slice(0,60))||"")}</td></tr>`).join("");
-    $("trace").innerHTML = `<div class="kv">trace ${esc(tr.trace_id||"")}</div>
-      <table><tr><th>span</th><th>status</th><th>detail</th></tr>${rows||"<tr><td colspan=3>no spans (task still queued)</td></tr>"}</table>`;
-  } catch (e) { $("trace").innerHTML = `<div class="kv">${esc(e.message)}</div>`; }
-}
-
 async function refreshDocs() {
+  const tb = $("docsBody");
   try {
     const { documents } = await api("/documents");
-    $("docList").innerHTML = documents.length ? documents.map(d =>
-      `<div class="card"><b>${esc(d.title)}</b> <span class="kv">${d.pages}p · ${esc(d.doc_type||"")}</span></div>`).join("")
-      : '<div class="kv">no documents yet</div>';
-  } catch {}
+    tb.innerHTML = documents.length ? documents.map(d => `<tr>
+      <td><b>${esc(d.title)}</b><div class="kv">${esc(d.source || "")}</div></td>
+      <td><span class="pill">${esc(d.doc_type || "?")}</span></td>
+      <td>${esc(d.pages ?? "?")}</td>
+      <td class="kv">${esc((d.created_at || "").slice(0, 19).replace("T", " "))}</td>
+      <td class="row"><button class="ghost" onclick="viewDoc('${d.id}')">View</button>
+          <button class="ghost" style="color:var(--err)" onclick="delDoc('${d.id}','${esc(d.title).replace(/'/g, "\\'")}')"">Delete</button></td>
+    </tr>`).join("") : '<tr><td colspan="5" class="kv">no documents yet — upload one above, the agent can only answer from what it ingested</td></tr>';
+  } catch (e) { tb.innerHTML = `<tr><td colspan="5" class="kv">⚠ ${esc(e.message)}</td></tr>`; }
+}
+$("docsRefresh").onclick = refreshDocs;
+async function viewDoc(id) {
+  try {
+    const d = await api("/documents/" + id);
+    const pages = (d.pages || []).map(p => `<div class="card"><b>Page ${p.page_number}</b><div style="margin-top:6px">${esc(p.text || "(image-only page — text extracted visually at retrieval time)")}</div></div>`).join("");
+    modal(d.title || id, pages || "(no pages)");
+  } catch (e) { toast("⚠ " + esc(e.message), "err"); }
+}
+async function delDoc(id, title) {
+  try {
+    const r = await api("/documents/" + id, { method: "DELETE" });
+    toast("🗑 " + esc(r.status || "deletion requested") + " — " + esc(title), "warn", 6000);
+  } catch (e) { toast("⚠ " + esc(e.message), "err"); }
+  refreshDocs();
 }
 
-$("sendBtn").onclick = send;
-$("input").addEventListener("keydown", e => { if (e.key === "Enter" && (e.ctrlKey||e.metaKey)) send(); });
-$("uploadBtn").onclick = async () => {
-  const f = $("docFile").files[0];
-  if (!f) return alert("choose a file first");
-  const fd = new FormData(); fd.append("file", f);
+/* ============================== tasks ============================== */
+const STATUS_PILL = { SUCCEEDED: "ok", COMPLETED: "ok", REFUSED: "warn", FAILED: "err", WAITING_FOR_APPROVAL: "warn", RUNNING: "run", QUEUED: "" };
+function pill(status) { return `<span class="pill ${STATUS_PILL[status] || ""}">${esc(status)}</span>`; }
+let taskTimer = null, currentTaskId = null;
+const EVSTORE = {};
+async function refreshTasks(quiet) {
   try {
-    const r = await fetch("/documents", { method:"POST", headers:{ "X-API-Key": KEY }, body: fd });
-    const b = await r.json();
-    addMsg("assistant", `📄 Ingested <b>${esc(f.name)}</b>: ${b.pages} page(s), id ${esc(b.document_id||"")}`);
-    refreshDocs();
-  } catch (e) { addMsg("assistant", `⚠ upload failed: ${esc(e.message)}`); }
-};
+    const { tasks } = await api("/tasks");
+    $("taskList").innerHTML = tasks.length ? tasks.slice(0, 20).map(t => `
+      <div class="card" style="cursor:pointer" onclick="openTask('${t.id}')">
+        <div class="row">${pill(t.status)} <b>${esc((t.final_answer || t.id).slice(0, 70))}</b></div>
+        <div class="kv" style="margin-top:3px">${esc(t.id)} · ${esc((t.created_at || "").slice(0, 19).replace("T", " "))}</div>
+      </div>`).join("") : '<div class="card kv">no tasks yet — ask something in Chat or POST /tasks</div>';
+  } catch (e) { if (!quiet) $("taskList").innerHTML = `<div class="card kv">⚠ ${esc(e.message)}</div>`; }
+}
+$("tasksRefresh").onclick = () => refreshTasks();
+async function openTask(id) {
+  document.querySelector('nav button[data-tab="tasks"]').click();
+  const box = $("taskDetail");
+  box.innerHTML = '<span class="spin"></span> loading…';
+  try {
+    const [t, ev, tr] = await Promise.all([
+      api("/tasks/" + id),
+      api(`/tasks/${id}/evidence`).catch(() => ({ evidence: [] })),
+      api(`/tasks/${id}/trace`).catch(() => ({ spans: [] })),
+    ]);
+    const v = (t.verification) || {};
+    const claims = (v.claims || []).map(c => `<tr>
+        <td>${esc(c.text).slice(0, 120)}</td>
+        <td>${c.supported ? '<span class="pill ok">supported</span>' : '<span class="pill err">unsupported</span>'}</td>
+        <td class="kv">${esc((c.evidence_ids || []).join(", "))}</td>
+        <td class="kv">${esc((c.problems || []).join("; "))}</td></tr>`).join("");
+    (ev.evidence || []).forEach((e, i) => { EVSTORE[i] = e; });
+    const evid = (ev.evidence || []).map((e, i) => `<tr>
+        <td><button class="cite" onclick="showEvidenceFull(EVSTORE[${i}])">${esc(e.evidence_id)}</button></td>
+        <td><span class="pill">${esc(e.content_type || "?")}</span></td>
+        <td class="kv">${esc((e.content || "").slice(0, 90))}…</td></tr>`).join("");
+    const spans = (tr.spans || []).map(s => `<tr><td>${esc(s.name)}</td><td>${pill((s.status || "").toUpperCase().replace("ERROR", "FAILED"))}</td>
+        <td class="kv">${esc((s.attributes && Object.entries(s.attributes).slice(0, 3).map(([k, x]) => k + "=" + String(x).slice(0, 40)).join(" · ")) || "")}</td></tr>`).join("");
+    box.innerHTML = `
+      <div class="row">${pill(t.status)} <span class="kv">${esc(t.id)} · risk ${esc(t.risk_level || "LOW")}</span></div>
+      <div style="margin:8px 0"><b>Goal:</b> ${esc(t.goal || "(n/a)")}</div>
+      ${t.final_answer ? `<div class="card" style="background:var(--bg2)"><b>Final answer</b><div style="margin-top:4px;white-space:pre-wrap">${linkCitations(esc(t.final_answer))}</div></div>` : ""}
+      ${claims ? `<div class="sec-title">Verification</div><table><tr><th>claim</th><th>verdict</th><th>evidence</th><th>problems</th></tr>${claims}</table>` : ""}
+      ${v.refusal_reason ? `<div class="verdict refused">🛡 ${esc(v.refusal_reason)}</div>` : ""}
+      ${evid ? `<div class="sec-title">Admissible evidence</div><table><tr><th>id</th><th>type</th><th>content</th></tr>${evid}</table>` : ""}
+      ${spans ? `<div class="sec-title">Trace</div><table><tr><th>span</th><th>status</th><th>detail</th></tr>${spans}</table>` : ""}
+      ${t.status === "WAITING_FOR_APPROVAL" ? `<div class="row" style="margin-top:10px"><button class="ok" onclick="decide('${id}','APPROVED').then(()=>openTask('${id}'))">Approve</button><button class="danger" onclick="decide('${id}','REJECTED').then(()=>openTask('${id}'))">Reject</button><button class="ghost" onclick="cancelTask('${id}')">Cancel</button></div>` : ""}
+      ${(t.status === "QUEUED" || t.status === "RUNNING") ? `<div class="row" style="margin-top:10px"><button class="ghost" onclick="cancelTask('${id}')">Cancel task</button></div>` : ""}`;
+  } catch (e) { box.innerHTML = "⚠ " + esc(e.message); }
+}
+async function cancelTask(id) {
+  try { await api(`/tasks/${id}/cancel`, { method: "POST", json: {} }); toast("task cancelled", "warn"); } catch (e) { toast("⚠ " + esc(e.message), "err"); }
+  openTask(id); refreshTasks(true);
+}
+function showEvidenceModal(evId) {
+  if (!currentTaskId) return toast("Ask something first — evidence belongs to a task run", "warn");
+  fetchEvidence(currentTaskId, evId);
+}
+async function fetchEvidence(taskId, evId) {
+  try {
+    const { evidence } = await api(`/tasks/${taskId}/evidence`);
+    const e = evidence.find(x => x.evidence_id === evId) || evidence.find(x => evId.includes(x.evidence_id) || x.evidence_id.includes(evId));
+    if (!e) return modal("Evidence " + evId, "(not found in this task's admissible evidence)");
+    showEvidenceFull(e);
+  } catch (e2) { toast("⚠ " + esc(e2.message), "err"); }
+}
+function showEvidenceFull(eJson) {
+  const e = typeof eJson === "string" ? JSON.parse(eJson) : eJson;
+  modal("Evidence " + e.evidence_id, `
+    <div class="row" style="margin-bottom:10px">
+      <span class="pill">${esc(e.content_type || "?")}</span>
+      <span class="kv">document ${esc(e.document_id || "?")} · page ${esc(e.page ?? "?")} · authority ${esc(e.source_authority || "?")} · relevance ${esc(e.relevance_score ?? "?")}</span>
+    </div>${esc(e.content)}`);
+}
 
-checkHealth(); refreshDocs(); refreshTasks(); refreshApprovals();
-setInterval(() => { refreshApprovals(); }, 5000);
+/* ============================== memory ============================== */
+async function refreshMemory() {
+  const box = $("memList");
+  try {
+    const { memories } = await api("/memory?kind=" + $("memKind").value);
+    box.innerHTML = memories.length ? memories.map(m => `<div class="card">
+      <div class="row">${m.active ? '<span class="pill ok">active</span>' : '<span class="pill">inactive</span>'}
+        <span class="pill">${esc(m.kind)}</span> <span class="kv">confidence ${esc(m.confidence)} · ${esc((m.created_at || "").slice(0, 19).replace("T", " "))}</span></div>
+      <div style="margin-top:6px">${esc(m.content)}</div></div>`).join("")
+      : '<div class="card kv">nothing stored yet — tell the agent something like “remember that my timezone is IST”</div>';
+  } catch (e) { box.innerHTML = `<div class="card kv">⚠ ${esc(e.message)}</div>`; }
+}
+$("memRefresh").onclick = refreshMemory;
+$("memKind").onchange = refreshMemory;
+
+/* ============================== boot ============================== */
+bootChecks();
+refreshDocs();
+refreshTasks(true);
+setInterval(() => refreshTasks(true), 8000);
 </script>
 </body>
 </html>

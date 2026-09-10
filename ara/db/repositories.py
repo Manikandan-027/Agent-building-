@@ -39,7 +39,7 @@ class TaskRepository:
 
     def list(self, tenant_id: str, limit: int = 50) -> list[dict]:
         return self.db.query(
-            "SELECT id,status,risk_level,created_at,updated_at FROM tasks WHERE tenant_id=?"
+            "SELECT id,status,risk_level,created_at,updated_at,final_answer FROM tasks WHERE tenant_id=?"
             " ORDER BY created_at DESC LIMIT ?",
             (tenant_id, limit),
         )

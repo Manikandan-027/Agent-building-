@@ -5,7 +5,7 @@
 - Unsupported claim rate: 40.0%
 - Citation coverage: 76%
 - Guardrail activations: 9
-- Avg latency: 6 ms
+- Avg latency: 2 ms
 
 | category | passed |
 |---|---|
