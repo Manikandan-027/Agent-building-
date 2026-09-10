@@ -287,7 +287,7 @@ function setKeyState(ok, label) {
 }
 $("keySave").onclick = () => {
   KEY = $("keyInput").value.trim() || "ara-dev-key-change-me";
-  localStorage.setItem("ara_key", KEY);
+  store.setItem("ara_key", KEY);
   $("keyInput").value = KEY;
   toast("API key saved", "ok");
   bootChecks();
